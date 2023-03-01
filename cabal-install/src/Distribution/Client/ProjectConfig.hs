@@ -64,6 +64,7 @@ import Distribution.Client.Compat.Prelude
 
 import Distribution.Client.ProjectConfig.Types
 import Distribution.Client.ProjectConfig.Legacy
+import qualified Distribution.Client.ProjectConfig.Parsec as Parsec
 import Distribution.Client.RebuildMonad
 import Distribution.Client.Glob
          ( isTrivialFilePathGlob )
@@ -84,6 +85,8 @@ import Distribution.Client.HttpUtils
          ( HttpTransport, configureTransport, transportCheckHttps
          , downloadURI )
 import Distribution.Client.Utils.Parsec (renderParseError)
+
+import Distribution.Simple.PackageDescription (readAndParseFile)
 
 import Distribution.Solver.Types.SourcePackage
 import Distribution.Solver.Types.Settings
@@ -578,14 +581,15 @@ readProjectFileSkeleton verbosity httpTransport DistDirLayout{distProjectFile, d
     exists <- liftIO $ doesFileExist extensionFile
     if exists
       then do monitorFiles [monitorFileHashed extensionFile]
-              pcs <- liftIO readExtensionFile
+              pcs <- liftIO $ readExtensionFile' verbosity extensionFile
               monitorFiles $ map monitorFileHashed (projectSkeletonImports pcs)
               pure pcs
       else do monitorFiles [monitorNonExistentFile extensionFile]
               return mempty
   where
     extensionFile = distProjectFile extensionName
-
+    readExtensionFile' = readAndParseFile Parsec.parseProjectSkeleton
+    -- TODO #6101 only keep this for documentation purposes for now
     readExtensionFile =
           reportParseResult verbosity extensionDescription extensionFile
       =<< parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile
