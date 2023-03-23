@@ -79,6 +79,8 @@ import Distribution.Client.GlobalFlags (GlobalFlags, globalNix)
 import Distribution.Simple.Flag (Flag (Flag, NoFlag))
 import Data.Maybe (fromJust)
 
+import IntegrationTests2.ProjectConfig.ParsecTests
+
 #if !MIN_VERSION_directory(1,2,7)
 removePathForcibly :: FilePath -> IO ()
 removePathForcibly = removeDirectoryRecursive
@@ -89,9 +91,11 @@ main =
   defaultMainWithIngredients
     (defaultIngredients ++ [includingOptions projectConfigOptionDescriptions])
     (withProjectConfig $ \config ->
-      testGroup "Integration tests (internal)"
-                (tests config))
-
+      testGroup "Integration tests"
+        [
+         testGroup "ProjectConfig Parsec Tests" parserTests
+         , testGroup "Integration tests (internal)" (tests config)
+        ])
 
 tests :: ProjectConfig -> [TestTree]
 tests config =
