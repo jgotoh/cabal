@@ -150,6 +150,7 @@ library
         Distribution.Client.ProjectBuilding
         Distribution.Client.ProjectBuilding.Types
         Distribution.Client.ProjectConfig
+        Distribution.Client.ProjectConfig.FieldGrammar
         Distribution.Client.ProjectConfig.Legacy
         Distribution.Client.ProjectConfig.Parsec
         Distribution.Client.ProjectConfig.Types
