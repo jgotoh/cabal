@@ -10,6 +10,9 @@
 --
 module Distribution.Client.ProjectConfig (
 
+    readProjectFileSkeleton,
+    readProjectFileSkeletonLegacy,
+
     -- * Types for project config
     ProjectConfig(..),
     ProjectConfigBuildOnly(..),
@@ -590,6 +593,27 @@ readProjectFileSkeleton verbosity httpTransport DistDirLayout{distProjectFile, d
     extensionFile = distProjectFile extensionName
     readExtensionFile' = readAndParseFile Parsec.parseProjectSkeleton
     -- TODO #6101 only keep this for documentation purposes for now
+    readExtensionFile =
+          reportParseResult verbosity extensionDescription extensionFile
+      =<< parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile
+      =<< BS.readFile extensionFile
+
+-- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
+--
+readProjectFileSkeletonLegacy :: Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton
+readProjectFileSkeletonLegacy verbosity httpTransport DistDirLayout{distProjectFile, distDownloadSrcDirectory}
+                         extensionName extensionDescription = do
+    exists <- liftIO $ doesFileExist extensionFile
+    if exists
+      then do monitorFiles [monitorFileHashed extensionFile]
+              pcs <- liftIO readExtensionFile
+              monitorFiles $ map monitorFileHashed (projectSkeletonImports pcs)
+              pure pcs
+      else do monitorFiles [monitorNonExistentFile extensionFile]
+              return mempty
+  where
+    extensionFile = distProjectFile extensionName
+
     readExtensionFile =
           reportParseResult verbosity extensionDescription extensionFile
       =<< parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile
