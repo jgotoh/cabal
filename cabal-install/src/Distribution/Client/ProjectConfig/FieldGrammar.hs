@@ -1,11 +1,11 @@
 -- | 'ProjectConfig' Field descriptions
-module Distribution.Client.ProjectConfig.FieldGrammar (projectConfigSkeletonFieldGrammar) where
+module Distribution.Client.ProjectConfig.FieldGrammar (
+  projectConfigFieldGrammar
+  ) where
 
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton)
+import Distribution.Client.ProjectConfig.Types (ProjectConfig)
 import Distribution.FieldGrammar
 
-projectConfigSkeletonFieldGrammar
-    :: ( FieldGrammar c g, Applicative (g ProjectConfigSkeleton)
-       )
-    => g ProjectConfigSkeleton ProjectConfigSkeleton
-projectConfigSkeletonFieldGrammar = undefined
+projectConfigFieldGrammar :: ParsecFieldGrammar' ProjectConfig
+projectConfigFieldGrammar = undefined
