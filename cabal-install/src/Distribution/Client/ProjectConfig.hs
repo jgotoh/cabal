@@ -584,19 +584,14 @@ readProjectFileSkeleton verbosity httpTransport DistDirLayout{distProjectFile, d
     exists <- liftIO $ doesFileExist extensionFile
     if exists
       then do monitorFiles [monitorFileHashed extensionFile]
-              pcs <- liftIO $ readExtensionFile' verbosity extensionFile
+              pcs <- liftIO $ readExtensionFile verbosity extensionFile
               monitorFiles $ map monitorFileHashed (projectSkeletonImports pcs)
               pure pcs
       else do monitorFiles [monitorNonExistentFile extensionFile]
               return mempty
   where
     extensionFile = distProjectFile extensionName
-    readExtensionFile' = readAndParseFile Parsec.parseProjectSkeleton
-    -- TODO #6101 only keep this for documentation purposes for now
-    readExtensionFile =
-          reportParseResult verbosity extensionDescription extensionFile
-      =<< parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile
-      =<< BS.readFile extensionFile
+    readExtensionFile = readAndParseFile Parsec.parseProjectSkeleton
 
 -- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
 --
