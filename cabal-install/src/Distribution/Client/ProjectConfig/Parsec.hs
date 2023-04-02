@@ -5,6 +5,8 @@
 module Distribution.Client.ProjectConfig.Parsec (
   -- * Package configuration
   parseProjectSkeleton,
+  ProjectConfigSkeleton,
+  ProjectConfig (..),
 
   -- ** Parsing
   ParseResult,
@@ -17,7 +19,7 @@ import Distribution.FieldGrammar
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton, ProjectConfigImport)
-import Distribution.Client.ProjectConfig.Types (ProjectConfig)
+import Distribution.Client.ProjectConfig.Types (ProjectConfig (..))
 import Distribution.Fields.ConfVar                   (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 -- AST type
