@@ -14,6 +14,10 @@ import Distribution.Client.DistDirLayout
 import Distribution.Client.ProjectConfig
 import Distribution.Client.RebuildMonad (runRebuild)
 import Distribution.Types.CondTree (CondTree (..))
+import Distribution.Types.PackageName
+import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
+import Distribution.Types.Version (Version, mkVersion)
+import Distribution.Types.VersionRange.Internal (VersionRange (..))
 import Distribution.Verbosity
 
 -- TODO create tests:
@@ -24,6 +28,7 @@ parserTests = [
   -- testCase "read with legacy parser" testLegacyRead
   testCase "read packages" testPackages
   , testCase "read optional-packages" testOptionalPackages
+  , testCase "read extra-packages" testExtraPackages
   ]
 
 -- Currently I compare the results of legacy parser with the new parser
@@ -51,7 +56,7 @@ testLegacyRead = do
 
 testPackages :: Assertion
 testPackages = do
-  let expected = [".", "packages/packages.cabal"] -- TODO https link, what does legacy parse?
+  let expected = [".", "packages/packages.cabal"] -- TODO also test https link
   -- Note that I currently also run the legacy parser to make sure my expected values
   -- do not differ from the non-Parsec implementation, this will be removed in the future
   (config, legacy) <- readConfigDefault "packages"
@@ -62,6 +67,15 @@ testOptionalPackages = do
   let expected = [".", "packages/packages.cabal"]
   (config, legacy) <- readConfigDefault "optional-packages"
   assertConfig expected config legacy (projectPackagesOptional . condTreeData)
+
+testExtraPackages :: Assertion
+testExtraPackages = do
+  let expected = [
+        PackageVersionConstraint (mkPackageName "a") (OrLaterVersion (mkVersion [0])),
+        PackageVersionConstraint (mkPackageName "b") (IntersectVersionRanges (OrLaterVersion (mkVersion [0,7,3])) (EarlierVersion (mkVersion [0,9])))
+                 ]
+  (config, legacy) <- readConfigDefault "extra-packages"
+  assertConfig expected config legacy (projectPackagesNamed . condTreeData)
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
