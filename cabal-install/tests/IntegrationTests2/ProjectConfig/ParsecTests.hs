@@ -23,6 +23,7 @@ parserTests :: [TestTree]
 parserTests = [
   -- testCase "read with legacy parser" testLegacyRead
   testCase "read packages" testPackages
+  , testCase "read optional-packages" testOptionalPackages
   ]
 
 -- Currently I compare the results of legacy parser with the new parser
@@ -54,8 +55,13 @@ testPackages = do
   -- Note that I currently also run the legacy parser to make sure my expected values
   -- do not differ from the non-Parsec implementation, this will be removed in the future
   (config, legacy) <- readConfigDefault "packages"
-  assertConfig expected config (projectPackages . condTreeData)
-  assertConfig expected legacy (projectPackages . condTreeData)
+  assertConfig expected config legacy (projectPackages . condTreeData)
+
+testOptionalPackages :: Assertion
+testOptionalPackages = do
+  let expected = [".", "packages/packages.cabal"]
+  (config, legacy) <- readConfigDefault "optional-packages"
+  assertConfig expected config legacy (projectPackagesOptional . condTreeData)
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
@@ -79,10 +85,18 @@ readConfig rootFp projectFileName = do
     readProjectFileSkeletonLegacy verbosity httpTransport distDirLayout extensionName extensionDescription
   return (parsec, legacy)
 
-assertConfig :: (Eq a, Show a) => a -> ProjectConfigSkeleton -> (ProjectConfigSkeleton -> a) -> IO ()
-assertConfig expected config access = expected @=? actual
+assertConfig' :: (Eq a, Show a) => a -> ProjectConfigSkeleton -> (ProjectConfigSkeleton -> a) -> IO ()
+assertConfig' expected config access = expected @=? actual
   where
     actual = access config
+
+assertConfig :: (Eq a, Show a) => a -> ProjectConfigSkeleton -> ProjectConfigSkeleton -> (ProjectConfigSkeleton -> a) -> IO ()
+assertConfig expected config configLegacy access = do
+  expected @=? actualLegacy
+  expected @=? actual
+  where
+    actual = access config
+    actualLegacy = access configLegacy
 
 -- | Test Utilities
 emptyProjectConfig :: ProjectConfig
