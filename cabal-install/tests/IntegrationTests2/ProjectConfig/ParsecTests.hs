@@ -29,10 +29,9 @@ parserTests = [
   testCase "read packages" testPackages
   , testCase "read optional-packages" testOptionalPackages
   , testCase "read extra-packages" testExtraPackages
+  , testCase "read source-repository-package" testSourceRepoList
   ]
 
--- Currently I compare the results of legacy parser with the new parser
--- When the parser is implemented I will migrate it to compare to actual values
 testLegacyRead :: Assertion
 testLegacyRead = do
   httpTransport <- configureTransport verbosity [] Nothing
@@ -67,6 +66,13 @@ testOptionalPackages = do
   let expected = [".", "packages/packages.cabal"]
   (config, legacy) <- readConfigDefault "optional-packages"
   assertConfig expected config legacy (projectPackagesOptional . condTreeData)
+
+testSourceRepoList :: Assertion
+testSourceRepoList = do
+  let expected = [
+                 ]
+  (config, legacy) <- readConfigDefault "source-repository-packages"
+  assertConfig expected config legacy (projectPackagesRepo . condTreeData)
 
 testExtraPackages :: Assertion
 testExtraPackages = do
