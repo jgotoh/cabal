@@ -13,13 +13,16 @@ module Distribution.Client.ProjectConfig.Parsec (
   runParseResult
   ) where
 
+import Control.Monad.State.Strict                    (StateT, execStateT, lift)
 import Distribution.CabalSpecVersion
+import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton, ProjectConfigImport)
 import Distribution.Client.ProjectConfig.Types (ProjectConfig (..))
+import Distribution.Client.Types.SourceRepo (sourceRepositoryPackageGrammar, SourceRepoList)
 import Distribution.Fields.ConfVar                   (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 -- AST type
@@ -36,9 +39,6 @@ import Distribution.Utils.Generic                    (breakMaybe, fromUTF8BS, to
 import qualified Data.ByteString                                   as BS
 import qualified Text.Parsec                                       as P
 
--- TODO 6101 the following is copied from Distribution.PackageDescription.Parsec.parseGenericPackageDescription
--- - do we need to use patchQuirks also for cabal.project files? if we do, we can extract a
--- common preprocessing function (patchQuirks, valid UTF8, ) to avoid code duplication
 -- | Preprocess file and start parsing
 parseProjectSkeleton :: BS.ByteString -> ParseResult ProjectConfigSkeleton
 parseProjectSkeleton bs = do
@@ -66,68 +66,59 @@ parseProjectSkeleton' lexWarnings utf8WarnPos fs = do
     parseWarnings (toPWarnings lexWarnings)
     for_ utf8WarnPos $ \pos ->
         parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
-    parseCondTree specVer fs
-    where
-      -- TODO where do we get specVer?
-      specVer :: CabalSpecVersion
-      specVer = CabalSpecV3_8
+    parseCondTree fs
 
--- migrated from Distribution.PackageDescription.Parsec
+-- List of conditional blocks
+newtype Conditionals = Conditionals [[Section Position]]
+
+-- | Separate conditional blocks from other sections so
+-- all conditionals form their own groups.
+partitionConditionals :: [[Section Position]] -> ([[Section Position]], Conditionals)
+partitionConditionals sections = undefined
+
 parseCondTree
-    :: CabalSpecVersion
-    -> [Field Position]
+    :: [Field Position]
     -> ParseResult ProjectConfigSkeleton
-parseCondTree v fields0 = do
-        let (fs, sections) = partitionFields fields0
-            msg = show sections
-        parseWarning (Position 1 1) PWTInvalidSubsection msg
-        imports <- parseImports fs
-        config <- parseFieldGrammar v fs projectConfigFieldGrammar
-        (config', branches) <- parseSections v config sections
-        return $ CondNode config' imports branches
+parseCondTree fields0 = do
+    -- sections are groups of sections between fields
+    let (fs, sections) = partitionFields fields0
+        (sectionGroups, conditionals) = partitionConditionals sections
+        msg = show sectionGroups
+    imports <- parseImports fs
+    config <- parseFieldGrammar cabalSpecLatest fs projectConfigFieldGrammar
+    config' <- view stateConfig <$> execStateT (goSections sectionGroups) (SectionS config)
+    let configSkeleton = CondNode config imports []
+    -- TODO parse conditionals
+    return configSkeleton
 
-parseSections
-    :: CabalSpecVersion
-    -> ProjectConfig
-    -> [[Section Position]]
-    -> ParseResult (a, [CondBranch v [ProjectConfigImport] a])
-parseSections v config sections = undefined
-  where
-    parseIfs :: [Section Position] -> ParseResult [CondBranch ConfVar [ProjectConfigImport] ProjectConfig]
-    parseIfs [] = return []
-    parseIfs (MkSection (Name _ name) test fields : sections) | name == "if" = do
-        test' <- parseConditionConfVar test
-        fields' <- parseCondTree v fields
-        (elseFields, sections') <- parseElseIfs sections
-        return (CondBranch test' fields' elseFields : sections')
-    parseIfs (MkSection (Name pos name) _ _ : sections) = do
-        parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
-        parseIfs sections
+-- Monad in which sections are parsed
+type SectionParser = StateT SectionS ParseResult
 
-    parseElseIfs
-        :: [Section Position]
-        -> ParseResult (Maybe (CondTree ConfVar [ProjectConfigImport] ProjectConfig), [CondBranch ConfVar [ProjectConfigImport] ProjectConfig])
-    parseElseIfs [] = return (Nothing, [])
-    parseElseIfs (MkSection (Name pos name) args fields : sections) | name == "else" = do
-        unless (null args) $
-            parseFailure pos $ "`else` section has section arguments " ++ show args
-        elseFields <- parseCondTree v fields
-        sections' <- parseIfs sections
-        return (Just elseFields, sections')
+-- | State of section parser
+newtype SectionS = SectionS
+    { _stateConfig  :: ProjectConfig
+    }
 
-    parseElseIfs (MkSection (Name _ name) test fields : sections) | name == "elif" = do
-        test' <- parseConditionConfVar test
-        fields' <- parseCondTree v fields
-        (elseFields, sections') <- parseElseIfs sections
-        -- we parse an empty 'Fields', to get empty value for a node
-        a <- parseFieldGrammar v mempty projectConfigFieldGrammar
-        return (Just $ CondNode a mempty [CondBranch test' fields' elseFields], sections')
+stateConfig :: Lens' SectionS ProjectConfig
+stateConfig f (SectionS cfg) = SectionS <$> f cfg
+{-# INLINEABLE stateConfig #-}
 
-    parseElseIfs (MkSection (Name pos name) _ _ : sections) | name == "elif" = do
-        parseWarning pos PWTInvalidSubsection $ "invalid subsection \"elif\". You should set cabal-version: 2.2 or larger to use elif-conditionals."
-        (,) Nothing <$> parseIfs sections
+goSections :: [[Section Position]] -> SectionParser ()
+goSections = traverse_ parseSectionGroup
 
-    parseElseIfs sections = (,) Nothing <$> parseIfs sections
+parseSectionGroup :: [Section Position] -> SectionParser ()
+parseSectionGroup = traverse_ parseSection
+
+parseSection :: Section Position -> SectionParser ()
+parseSection (MkSection (Name pos name) args secFields)
+    | name == "source-repository-package" = do
+        let (fields, secs) = partitionFields secFields
+        srp <- lift $ parseFieldGrammar cabalSpecLatest fields sourceRepositoryPackageGrammar
+        unless (null secs) (warnInvalidSubsection pos name)
+    | otherwise = do
+        warnInvalidSubsection pos name
+
+warnInvalidSubsection pos name = lift $ parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
 
 -- TODO implement, caution: check for cyclical imports
 parseImports :: Fields Position -> ParseResult [ProjectConfigImport]
