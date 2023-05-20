@@ -13,7 +13,7 @@ module Distribution.Client.ProjectConfig.Parsec (
   runParseResult
   ) where
 
-import Control.Monad.State.Strict                    (StateT, execStateT, lift)
+import Control.Monad.State.Strict                    (StateT, execStateT, lift, modify)
 import Distribution.CabalSpecVersion
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
@@ -21,6 +21,7 @@ import Distribution.FieldGrammar
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton, ProjectConfigImport)
+import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (ProjectConfig (..))
 import Distribution.Client.Types.SourceRepo (sourceRepositoryPackageGrammar, SourceRepoList)
 import Distribution.Fields.ConfVar                   (parseConditionConfVar)
@@ -69,25 +70,27 @@ parseProjectSkeleton' lexWarnings utf8WarnPos fs = do
     parseCondTree fs
 
 -- List of conditional blocks
-newtype Conditionals = Conditionals [[Section Position]]
+newtype Conditional ann = Conditional [Section ann]
+  deriving (Eq, Show)
 
--- | Separate conditional blocks from other sections so
+-- | Separate valid conditional blocks from other sections so
 -- all conditionals form their own groups.
-partitionConditionals :: [[Section Position]] -> ([[Section Position]], Conditionals)
-partitionConditionals sections = undefined
+-- TODO implement
+partitionConditionals :: [[Section ann]] -> ([Section ann], [Conditional ann])
+partitionConditionals sections = (concat sections, [])
 
 parseCondTree
     :: [Field Position]
     -> ParseResult ProjectConfigSkeleton
 parseCondTree fields0 = do
     -- sections are groups of sections between fields
-    let (fs, sections) = partitionFields fields0
-        (sectionGroups, conditionals) = partitionConditionals sections
+    let (fs, sectionGroups) = partitionFields fields0
+        (sections, conditionals) = partitionConditionals sectionGroups
         msg = show sectionGroups
     imports <- parseImports fs
     config <- parseFieldGrammar cabalSpecLatest fs projectConfigFieldGrammar
-    config' <- view stateConfig <$> execStateT (goSections sectionGroups) (SectionS config)
-    let configSkeleton = CondNode config imports []
+    config' <- view stateConfig <$> execStateT (goSections sections) (SectionS config)
+    let configSkeleton = CondNode config' imports []
     -- TODO parse conditionals
     return configSkeleton
 
@@ -103,17 +106,15 @@ stateConfig :: Lens' SectionS ProjectConfig
 stateConfig f (SectionS cfg) = SectionS <$> f cfg
 {-# INLINEABLE stateConfig #-}
 
-goSections :: [[Section Position]] -> SectionParser ()
-goSections = traverse_ parseSectionGroup
-
-parseSectionGroup :: [Section Position] -> SectionParser ()
-parseSectionGroup = traverse_ parseSection
+goSections :: [Section Position] -> SectionParser ()
+goSections = traverse_ parseSection
 
 parseSection :: Section Position -> SectionParser ()
 parseSection (MkSection (Name pos name) args secFields)
     | name == "source-repository-package" = do
         let (fields, secs) = partitionFields secFields
         srp <- lift $ parseFieldGrammar cabalSpecLatest fields sourceRepositoryPackageGrammar
+        stateConfig . L.projectPackagesRepo %= (++ [srp])
         unless (null secs) (warnInvalidSubsection pos name)
     | otherwise = do
         warnInvalidSubsection pos name
