@@ -2,6 +2,7 @@
 module IntegrationTests2.ProjectConfig.ParsecTests (parserTests) where
 
 import qualified Data.ByteString as BS
+import Data.Either
 import Distribution.Client.DistDirLayout
 import Distribution.Client.HttpUtils
 import Distribution.Client.ProjectConfig
@@ -12,14 +13,13 @@ import Distribution.Types.CondTree (CondTree (..))
 import Distribution.Types.PackageName
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 import Distribution.Types.SourceRepo (KnownRepoType (..), RepoType (..))
-import Distribution.Types.Version (Version, mkVersion)
+import Distribution.Types.Version (mkVersion)
 import Distribution.Types.VersionRange.Internal (VersionRange (..))
 import Distribution.Verbosity
 import System.Directory
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.HUnit
-import Test.Tasty.Options
 
 -- TODO create tests:
 -- - parser tests to read and compare to expected values
@@ -81,12 +81,8 @@ testExtraPackages = do
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
 
--- TODO this is an overkill, look at warningTests, they just use runParseResult without
--- httpTransport etc
 readConfig :: FilePath -> FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfig rootFp projectFileName = do
-  -- TODO extract argument so it can be mocked
-  httpTransport <- configureTransport verbosity [] Nothing
   projectRootDir <- canonicalizePath (basedir </> rootFp)
 
   let projectRoot = ProjectRootExplicit projectRootDir projectFileName
@@ -96,9 +92,11 @@ readConfig rootFp projectFileName = do
       distProjectConfigFp = distProjectFile distDirLayout extensionName
   exists <- doesFileExist distProjectConfigFp
   assertBool ("projectConfig does not exist: " <> distProjectConfigFp) exists
-  parsec <-
-    runRebuild projectRootDir $
-      readProjectFileSkeleton verbosity httpTransport distDirLayout extensionName extensionDescription
+  contents <- BS.readFile distProjectConfigFp
+  let (_, res) = runParseResult $ parseProjectSkeleton contents
+  assertBool ("should parse successfully: " ++ show res) $ isRight res
+  let parsec = fromRight undefined res
+  httpTransport <- configureTransport verbosity [] Nothing
   legacy <-
     runRebuild projectRootDir $
       readProjectFileSkeletonLegacy verbosity httpTransport distDirLayout extensionName extensionDescription
@@ -118,9 +116,6 @@ assertConfig expected config configLegacy access = do
     actualLegacy = access configLegacy
 
 -- | Test Utilities
-emptyProjectConfig :: ProjectConfig
-emptyProjectConfig = mempty
-
 verbosity :: Verbosity
 verbosity = normal -- minBound --normal --verbose --maxBound --minBound
 
