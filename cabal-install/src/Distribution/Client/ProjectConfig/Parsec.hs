@@ -43,31 +43,20 @@ import qualified Text.Parsec                                       as P
 -- | Preprocess file and start parsing
 parseProjectSkeleton :: BS.ByteString -> ParseResult ProjectConfigSkeleton
 parseProjectSkeleton bs = do
-    case readFields' bs'' of
+    case readFields' bs' of
         Right (fs, lexWarnings) -> do
-            when patched $
-                parseWarning zeroPos PWTQuirkyCabalFile "Legacy cabal file"
-            parseProjectSkeleton' lexWarnings invalidUtf8 fs
+            parseWarnings (toPWarnings lexWarnings)
+            for_ invalidUtf8 $ \pos ->
+                parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
+            parseCondTree fs
         Left perr -> parseFatalFailure pos (show perr) where
             ppos = P.errorPos perr
             pos  = Position (P.sourceLine ppos) (P.sourceColumn ppos)
   where
-    (patched, bs') = patchQuirks bs
-    invalidUtf8 = validateUTF8 bs'
-    bs'' = case invalidUtf8 of
-        Nothing -> bs'
-        Just _  -> toUTF8BS (fromUTF8BS bs')
-
-parseProjectSkeleton'
-    :: [LexWarning]
-    -> Maybe Int
-    -> [Field Position]
-    -> ParseResult ProjectConfigSkeleton
-parseProjectSkeleton' lexWarnings utf8WarnPos fs = do
-    parseWarnings (toPWarnings lexWarnings)
-    for_ utf8WarnPos $ \pos ->
-        parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
-    parseCondTree fs
+    invalidUtf8 = validateUTF8 bs
+    bs' = case invalidUtf8 of
+        Nothing -> bs
+        Just _  -> toUTF8BS (fromUTF8BS bs)
 
 -- List of conditional blocks
 newtype Conditional ann = Conditional [Section ann]
