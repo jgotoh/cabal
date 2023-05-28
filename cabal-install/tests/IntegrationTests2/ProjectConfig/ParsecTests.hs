@@ -1,20 +1,26 @@
+{-# LANGUAGE RecordWildCards     #-}
+
 -- | Integration Tests related to parsing of ProjectConfigs
 module IntegrationTests2.ProjectConfig.ParsecTests (parserTests) where
 
 import qualified Data.ByteString as BS
 import Data.Either
+import Distribution.Client.BuildReports.Types
 import Distribution.Client.DistDirLayout
 import Distribution.Client.HttpUtils
 import Distribution.Client.ProjectConfig
 import Distribution.Client.ProjectConfig.Parsec
 import Distribution.Client.RebuildMonad (runRebuild)
 import Distribution.Client.Types.SourceRepo
+import Distribution.Simple.Flag
+import Distribution.Simple.InstallDirs (toPathTemplate)
 import Distribution.Types.CondTree (CondTree (..))
 import Distribution.Types.PackageName
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 import Distribution.Types.SourceRepo (KnownRepoType (..), RepoType (..))
 import Distribution.Types.Version (mkVersion)
 import Distribution.Types.VersionRange.Internal (VersionRange (..))
+import Distribution.Utils.NubList
 import Distribution.Verbosity
 import System.Directory
 import System.FilePath
@@ -29,12 +35,13 @@ parserTests =
   [ testCase "read packages" testPackages,
     testCase "read optional-packages" testOptionalPackages,
     testCase "read extra-packages" testExtraPackages,
-    testCase "read source-repository-package" testSourceRepoList
+    testCase "read source-repository-package" testSourceRepoList,
+    testCase "read project-config-build-only" testProjectConfigBuildOnly
   ]
 
 testPackages :: Assertion
 testPackages = do
-  let expected = [".", "packages/packages.cabal"] -- TODO also test https link
+  let expected = [".", "packages/packages.cabal"]
   -- Note that I currently also run the legacy parser to make sure my expected values
   -- do not differ from the non-Parsec implementation, this will be removed in the future
   (config, legacy) <- readConfigDefault "packages"
@@ -77,6 +84,31 @@ testExtraPackages = do
         ]
   (config, legacy) <- readConfigDefault "extra-packages"
   assertConfig expected config legacy (projectPackagesNamed . condTreeData)
+
+testProjectConfigBuildOnly :: Assertion
+testProjectConfigBuildOnly = do
+  let expected = ProjectConfigBuildOnly {..}
+  (config, legacy) <- readConfigDefault "project-config-build-only"
+  assertConfig expected config legacy (projectConfigBuildOnly . condTreeData)
+  where
+       projectConfigVerbosity             = toFlag (toEnum 2)
+       projectConfigDryRun                = toFlag False -- cli only
+       projectConfigOnlyDeps              = toFlag False -- cli only
+       projectConfigOnlyDownload          = toFlag False -- cli only
+       projectConfigSummaryFile           = toNubList [toPathTemplate "summaryFile"]
+       projectConfigLogFile               = toFlag $ toPathTemplate "myLog.log" -- TODO could be build-log
+       projectConfigBuildReports          = toFlag NoReports -- TODO maybe cli only?
+       projectConfigReportPlanningFailure = toFlag True
+       projectConfigSymlinkBinDir         = toFlag "some-bindir"
+       projectConfigNumJobs               = toFlag $ Just 4
+       projectConfigKeepGoing             = toFlag True -- cli only
+       projectConfigOfflineMode           = toFlag True
+       projectConfigKeepTempFiles         = toFlag True
+       projectConfigHttpTransport         = toFlag "wget"
+       projectConfigIgnoreExpiry          = toFlag True
+       projectConfigCacheDir              = toFlag "some-cache-dir"
+       projectConfigLogsDir               = toFlag "logs-directory"
+       projectConfigClientInstallFlags    = mempty -- TODO are these actually cli only?
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
