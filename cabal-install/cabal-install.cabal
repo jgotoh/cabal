@@ -66,6 +66,7 @@ library
     exposed-modules:
         -- this modules are moved from Cabal
         -- they are needed for as long until cabal-install moves to parsec parser
+        -- TODO #6101 should probably be deleted too
         Distribution.Deprecated.ParseUtils
         Distribution.Deprecated.ReadP
         Distribution.Deprecated.ViewAsFieldDescr
