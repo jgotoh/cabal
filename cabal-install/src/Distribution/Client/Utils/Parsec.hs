@@ -1,7 +1,15 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+
 module Distribution.Client.Utils.Parsec (
     renderParseError,
+    -- ** NubList
+    alaNubList,
+    alaNubList',
+    NubList'
     ) where
 
+import Distribution.Compat.Newtype
 import Distribution.Client.Compat.Prelude
 import Prelude ()
 import System.FilePath                    (normalise)
@@ -9,8 +17,11 @@ import System.FilePath                    (normalise)
 import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BS8
 
+import Distribution.FieldGrammar.Newtypes
 import Distribution.Parsec       (PError (..), PWarning (..), Position (..), showPos, zeroPos)
 import Distribution.Simple.Utils (fromUTF8BS)
+import qualified Distribution.Utils.NubList as NubList
+import Distribution.Utils.NubList (NubList (..))
 
 -- | Render parse error highlighting the part of the input file.
 renderParseError
@@ -100,3 +111,38 @@ advance n z@(Zipper xs ys)
     | otherwise = case ys of
         []      -> z
         (y:ys') -> advance (n - 1) $ Zipper (y:xs) ys'
+
+-- | Like 'List', but for 'NubList'.
+--
+-- @since 3.2.0.0
+newtype NubList' sep b a = NubList' { _getNubList :: NubList a }
+
+-- | 'alaNubList' and 'alaNubList'' are simply 'NubList'' constructor, with additional phantom
+-- arguments to constrain the resulting type
+--
+-- >>> :t alaNubList VCat
+-- alaNubList VCat :: NubList a -> NubList' VCat (Identity a) a
+--
+-- >>> :t alaNubList' FSep Token
+-- alaNubList' FSep Token :: NubList String -> NubList' FSep Token String
+--
+-- >>> unpack' (alaNubList' FSep Token) <$> eitherParsec "foo bar foo"
+-- Right (toNubList ["bar","foo"])
+--
+-- @since 3.2.0.0
+alaNubList :: sep -> NubList a -> NubList' sep (Identity a) a
+alaNubList _ = NubList'
+
+-- | More general version of 'alaNubList'.
+--
+-- @since 3.2.0.0
+alaNubList' :: sep -> (a -> b) -> NubList a -> NubList' sep b a
+alaNubList' _ _ = NubList'
+
+instance Newtype (NubList a) (NubList' sep wrapper a)
+
+instance (Newtype a b, Ord a, Sep sep, Parsec b) => Parsec (NubList' sep b a) where
+    parsec   = pack . NubList.toNubList . map (unpack :: b -> a) <$> parseSep (Proxy :: Proxy sep) parsec
+
+instance (Newtype a b, Sep sep, Pretty b) => Pretty (NubList' sep b a) where
+    pretty = prettySep (Proxy :: Proxy sep) . map (pretty . (pack :: a -> b)) . NubList.fromNubList . unpack
