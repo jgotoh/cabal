@@ -15,6 +15,7 @@ module Distribution.Client.ProjectConfig (
 
     -- * Types for project config
     ProjectConfig(..),
+    ProjectConfigSkeleton,
     ProjectConfigBuildOnly(..),
     ProjectConfigShared(..),
     ProjectConfigProvenance(..),

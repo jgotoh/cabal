@@ -11,6 +11,7 @@ module Distribution.Client.ProjectConfig.Legacy (
     instantiateProjectConfigSkeletonWithCompiler,
     singletonProjectConfigSkeleton,
     projectSkeletonImports,
+    ProjectConfigImport,
 
     -- * Project config in terms of legacy types
     LegacyProjectConfig,
