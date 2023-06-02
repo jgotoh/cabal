@@ -1,15 +1,17 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Distribution.Client.Utils.Parsec
   ( renderParseError
-  -- ** NubList
+
+    -- ** NubList
   , alaNubList
-  ,  alaNubList'
-  ,  NubList'
+  , alaNubList'
+  , NubList'
   ) where
 
-import Distribution.Compat.Newtype
 import Distribution.Client.Compat.Prelude
+import Distribution.Compat.Newtype
 import System.FilePath (normalise)
 import Prelude ()
 
@@ -19,8 +21,8 @@ import qualified Data.ByteString.Char8 as BS8
 import Distribution.FieldGrammar.Newtypes
 import Distribution.Parsec (PError (..), PWarning (..), Position (..), showPos, zeroPos)
 import Distribution.Simple.Utils (fromUTF8BS)
-import qualified Distribution.Utils.NubList as NubList
 import Distribution.Utils.NubList (NubList (..))
+import qualified Distribution.Utils.NubList as NubList
 
 -- | Render parse error highlighting the part of the input file.
 renderParseError
@@ -117,7 +119,7 @@ advance n z@(Zipper xs ys)
 -- | Like 'List', but for 'NubList'.
 --
 -- @since 3.2.0.0
-newtype NubList' sep b a = NubList' { _getNubList :: NubList a }
+newtype NubList' sep b a = NubList' {_getNubList :: NubList a}
 
 -- | 'alaNubList' and 'alaNubList'' are simply 'NubList'' constructor, with additional phantom
 -- arguments to constrain the resulting type
@@ -144,7 +146,7 @@ alaNubList' _ _ = NubList'
 instance Newtype (NubList a) (NubList' sep wrapper a)
 
 instance (Newtype a b, Ord a, Sep sep, Parsec b) => Parsec (NubList' sep b a) where
-    parsec   = pack . NubList.toNubList . map (unpack :: b -> a) <$> parseSep (Proxy :: Proxy sep) parsec
+  parsec = pack . NubList.toNubList . map (unpack :: b -> a) <$> parseSep (Proxy :: Proxy sep) parsec
 
 instance (Newtype a b, Sep sep, Pretty b) => Pretty (NubList' sep b a) where
-    pretty = prettySep (Proxy :: Proxy sep) . map (pretty . (pack :: a -> b)) . NubList.fromNubList . unpack
+  pretty = prettySep (Proxy :: Proxy sep) . map (pretty . (pack :: a -> b)) . NubList.fromNubList . unpack

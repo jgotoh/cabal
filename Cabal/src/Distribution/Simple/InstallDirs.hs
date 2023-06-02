@@ -52,12 +52,9 @@ import Distribution.Compat.Prelude
 import Prelude ()
 
 import Distribution.Compat.Environment (lookupEnv)
-import Distribution.Pretty
-import Distribution.Package
-import Distribution.Parsec
-import Distribution.System
 import Distribution.Compiler
 import Distribution.Package
+import Distribution.Parsec
 import Distribution.Pretty
 import Distribution.Simple.InstallDirs.Internal
 import Distribution.System

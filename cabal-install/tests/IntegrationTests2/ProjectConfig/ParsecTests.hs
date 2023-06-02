@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | Integration Tests related to parsing of ProjectConfigs
 module IntegrationTests2.ProjectConfig.ParsecTests (parserTests) where
@@ -32,11 +32,11 @@ import Test.Tasty.HUnit
 -- - golden tests for warnings and errors
 parserTests :: [TestTree]
 parserTests =
-  [ testCase "read packages" testPackages,
-    testCase "read optional-packages" testOptionalPackages,
-    testCase "read extra-packages" testExtraPackages,
-    testCase "read source-repository-package" testSourceRepoList,
-    testCase "read project-config-build-only" testProjectConfigBuildOnly
+  [ testCase "read packages" testPackages
+  , testCase "read optional-packages" testOptionalPackages
+  , testCase "read extra-packages" testExtraPackages
+  , testCase "read source-repository-package" testSourceRepoList
+  , testCase "read project-config-build-only" testProjectConfigBuildOnly
   ]
 
 testPackages :: Assertion
@@ -57,20 +57,20 @@ testSourceRepoList :: Assertion
 testSourceRepoList = do
   let expected =
         [ SourceRepositoryPackage
-            { srpType = KnownRepoType Git,
-              srpLocation = "https://example.com/Project.git",
-              srpTag = Just "1234",
-              srpBranch = Nothing,
-              srpSubdir = [],
-              srpCommand = []
-            },
-          SourceRepositoryPackage
-            { srpType = KnownRepoType Git,
-              srpLocation = "https://example.com/example-dir/",
-              srpTag = Just "12345",
-              srpBranch = Nothing,
-              srpSubdir = ["subproject"],
-              srpCommand = []
+            { srpType = KnownRepoType Git
+            , srpLocation = "https://example.com/Project.git"
+            , srpTag = Just "1234"
+            , srpBranch = Nothing
+            , srpSubdir = []
+            , srpCommand = []
+            }
+        , SourceRepositoryPackage
+            { srpType = KnownRepoType Git
+            , srpLocation = "https://example.com/example-dir/"
+            , srpTag = Just "12345"
+            , srpBranch = Nothing
+            , srpSubdir = ["subproject"]
+            , srpCommand = []
             }
         ]
   (config, legacy) <- readConfigDefault "source-repository-packages"
@@ -79,36 +79,36 @@ testSourceRepoList = do
 testExtraPackages :: Assertion
 testExtraPackages = do
   let expected =
-        [ PackageVersionConstraint (mkPackageName "a") (OrLaterVersion (mkVersion [0])),
-          PackageVersionConstraint (mkPackageName "b") (IntersectVersionRanges (OrLaterVersion (mkVersion [0, 7, 3])) (EarlierVersion (mkVersion [0, 9])))
+        [ PackageVersionConstraint (mkPackageName "a") (OrLaterVersion (mkVersion [0]))
+        , PackageVersionConstraint (mkPackageName "b") (IntersectVersionRanges (OrLaterVersion (mkVersion [0, 7, 3])) (EarlierVersion (mkVersion [0, 9])))
         ]
   (config, legacy) <- readConfigDefault "extra-packages"
   assertConfig expected config legacy (projectPackagesNamed . condTreeData)
 
 testProjectConfigBuildOnly :: Assertion
 testProjectConfigBuildOnly = do
-  let expected = ProjectConfigBuildOnly {..}
+  let expected = ProjectConfigBuildOnly{..}
   (config, legacy) <- readConfigDefault "project-config-build-only"
   assertConfig expected config legacy (projectConfigBuildOnly . condTreeData)
   where
-       projectConfigVerbosity             = toFlag (toEnum 2)
-       projectConfigDryRun                = toFlag False -- cli only
-       projectConfigOnlyDeps              = toFlag False -- cli only
-       projectConfigOnlyDownload          = toFlag False -- cli only
-       projectConfigSummaryFile           = toNubList [toPathTemplate "summaryFile"]
-       projectConfigLogFile               = toFlag $ toPathTemplate "myLog.log" -- TODO could be build-log
-       projectConfigBuildReports          = toFlag NoReports -- TODO maybe cli only?
-       projectConfigReportPlanningFailure = toFlag True
-       projectConfigSymlinkBinDir         = toFlag "some-bindir"
-       projectConfigNumJobs               = toFlag $ Just 4
-       projectConfigKeepGoing             = toFlag True -- cli only
-       projectConfigOfflineMode           = toFlag True
-       projectConfigKeepTempFiles         = toFlag True
-       projectConfigHttpTransport         = toFlag "wget"
-       projectConfigIgnoreExpiry          = toFlag True
-       projectConfigCacheDir              = toFlag "some-cache-dir"
-       projectConfigLogsDir               = toFlag "logs-directory"
-       projectConfigClientInstallFlags    = mempty -- TODO are these actually cli only?
+    projectConfigVerbosity = toFlag (toEnum 2)
+    projectConfigDryRun = toFlag False -- cli only
+    projectConfigOnlyDeps = toFlag False -- cli only
+    projectConfigOnlyDownload = toFlag False -- cli only
+    projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile"]
+    projectConfigLogFile = toFlag $ toPathTemplate "myLog.log" -- TODO could be build-log
+    projectConfigBuildReports = toFlag NoReports -- TODO maybe cli only?
+    projectConfigReportPlanningFailure = toFlag True
+    projectConfigSymlinkBinDir = toFlag "some-bindir"
+    projectConfigNumJobs = toFlag $ Just 4
+    projectConfigKeepGoing = toFlag True -- cli only
+    projectConfigOfflineMode = toFlag True
+    projectConfigKeepTempFiles = toFlag True
+    projectConfigHttpTransport = toFlag "wget"
+    projectConfigIgnoreExpiry = toFlag True
+    projectConfigCacheDir = toFlag "some-cache-dir"
+    projectConfigLogsDir = toFlag "logs-directory"
+    projectConfigClientInstallFlags = mempty -- TODO are these actually cli only?
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
