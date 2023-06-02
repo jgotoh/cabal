@@ -9,7 +9,9 @@ GHC provides the commands ``runhaskell`` and ``runghc`` (they are equivalent)
 to allow you to run Haskell programs without first having to compile them
 (scripts). The low-level Cabal interface is implemented using ``Setup.hs``
 scripts. You should prefer using higher level interface provided by nix-style
-builds.
+builds. However, the documentation of the low level interface below may be helpful
+to high level interface users as well, because it delves into internal details
+common to both and omitted elsewhere.
 
 ::
 
@@ -868,6 +870,16 @@ Miscellaneous options
     *pkgname* in a :pkg-field:`build-depends` should be resolved to
     *ipid*.
 
+.. option:: --promised-dependency[=pkgname=ipid]
+
+    Very much like ``--dependency`` but the package doesn't need to already
+    be installed. This is useful when attempting to start multiple component
+    sessions with cabal's multi-repl or projects such as Haskell Language Server.
+
+    Several checks which are enabled for ``--dependency``s are disabled for promised
+    dependencies, so prefer to use ``--dependency`` if you know that the dependency
+    is already installed.
+
 .. option:: --exact-configuration
 
     This changes Cabal to require every dependency be explicitly
@@ -1104,6 +1116,10 @@ Copy the files into the install locations and (for library packages)
 register the package with the compiler, i.e. make the modules it
 contains available to programs.
 
+Additionally for GHC the ``extra-compilation-artifacts`` directory is copied if present.
+GHC plugins can store extra data in subfolders.
+(e.g. *extra-compilation-artifacts/PLUGIN_NAME/HS_MODULE.txt*)
+
 The `install locations <#installation-paths>`__ are determined by
 options to `runhaskell Setup.hs configure`_.
 
@@ -1286,8 +1302,14 @@ the package.
 
     Determines if the results of individual test cases are shown on the
     terminal. May be ``always`` (always show), ``never`` (never show),
-    ``failures`` (show only failed results), or ``streaming`` (show all
-    results in real time).
+    ``failures`` (show only failed results), ``streaming`` (show all
+    results in real time) and ``direct`` (same as ``streaming`` but no log
+    file and possibly prettier).
+
+    Default value is ``direct``: it leaves test output untouched and does not
+    produce a log. This allows for colored output, which is popular with testing
+    frameworks. (On the other hand, ``streaming`` creates a log but looses
+    coloring.)
 
 .. option:: --test-options=options
 

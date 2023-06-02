@@ -288,12 +288,23 @@ package, and thus apply globally:
     to the root of the project (i.e., where the ``cabal.project``
     file lives.)
 
-    This option cannot be specified via a ``cabal.project`` file.
+    This option can only be specified from the command line.
+
+.. _cmdoption-project-dir:
+.. option:: --project-dir=DIR
+
+    Specifies the path of the project directory. If a relative
+    :ref:`project-file<cmdoption-project-file>` path is also specified,
+    it will be resolved relative to this directory.
+
+    The project directory does not need to contain a ``cabal.project`` file.
+
+    This option can only be specified from the command line.
 
 .. _cmdoption-project-file:
 .. option:: --project-file=FILE
 
-    Specifies the name of the project file used to specify the
+    Specifies the path and name of the project file used to specify the
     rest of the top-level configuration; defaults to ``cabal.project``.
     This name not only specifies the name of the main project file,
     but also the auxiliary project files ``cabal.project.freeze``
@@ -301,19 +312,20 @@ package, and thus apply globally:
     ``--project-file=my.project``, then the other files that will
     be probed are ``my.project.freeze`` and ``my.project.local``.
 
-    If the specified project file is a relative path, we will
+    If :ref:`project-dir<cmdoption-project-dir>` is not specified,
+    and the path is relative, we will
     look for the file relative to the current working directory,
     and then for the parent directory, until the project file is
     found or we have hit the top of the user's home directory.
 
-    This option cannot be specified via a ``cabal.project`` file.
+    This option can only be specified from the command line.
 
 .. option:: --ignore-project
 
     Ignores the local ``cabal.project`` file and uses the default
     configuration with the local ``foo.cabal`` file. Note that
-    if this flag is set while the ``--project-file`` flag is also
-    set then this flag will be ignored.
+    this flag will be ignored if either of the ``--project-dir`` or
+    ``--project-file`` flags are also set.
 
 .. option:: --store-dir=DIR
 
@@ -868,6 +880,7 @@ feature was added.
     The command line variant of this flag is ``--enable-benchmarks`` and
     ``--disable-benchmarks``.
 
+.. _cmdoption-extra-prog-path:
 .. cfg-field:: extra-prog-path: paths (newline or comma separated)
                --extra-prog-path=PATH
     :synopsis: Add directories to program search path.
@@ -881,6 +894,10 @@ feature was added.
 
     The command line variant of this flag is ``--extra-prog-path=PATH``,
     which can be specified multiple times.
+
+    When specifying :ref:`--http-transport<cmdoption-http-transport>` from the
+    command line, only extra-prog-path from the command line are added to the
+    program search path.
 
 .. cfg-field:: run-tests: boolean
                --run-tests
@@ -1497,6 +1514,16 @@ running ``setup haddock``.
 
     There is no command line variant of this flag.
 
+.. cfg-field:: haddock-output-dir: path
+               --haddock-output-dir=PATH
+    :synopsis: Generate haddock documentation into this directory.
+
+    Generate haddock documentation into this directory instead of the default
+    location next to other build products.
+
+    This flag is provided as a technology preview and is subject to change in the
+    next releases.
+
 .. cfg-field:: open: boolean
                --open
     :synopsis: Open generated documentation in-browser.
@@ -1550,7 +1577,7 @@ Advanced global configuration options
         The format and fields of the generated build information is currently experimental,
         in the future we might add or remove fields, depending on the needs of other tooling.
 
-
+.. _cmdoption-http-transport:
 .. cfg-field:: http-transport: curl, wget, powershell, or plain-http
                --http-transport=transport
     :synopsis: Transport to use with http(s) requests.
@@ -1560,6 +1587,12 @@ Advanced global configuration options
     Set a transport to be used when making http(s) requests.
 
     The command line variant of this field is ``--http-transport=curl``.
+
+    If the project configuration imports remote urls, the user can only specify
+    the http-transport option from the command line.
+
+    When specifying the http-transport from the command line, the program
+    search path can only be influenced using :ref:`--extra-prog-path<cmdoption-extra-prog-path>`.
 
 .. cfg-field:: ignore-expiry: boolean
                --ignore-expiry
@@ -1747,7 +1780,7 @@ Most users generally won't need these.
                --prefer-oldest
                --no-prefer-oldest
     :synopsis: Prefer the oldest versions of packages available.
-    :since:    3.8
+    :since:    3.10
 
     :default:  False
 

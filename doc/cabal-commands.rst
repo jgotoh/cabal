@@ -26,7 +26,7 @@ legacy sections. We talk in detail about some global and package commands.
 
     run               Run an executable.
     repl              Open an interactive session for the given component.
-    test              Run test-suites.
+    test              Run test suites.
     bench             Run benchmarks.
 
     sdist             Generate a source distribution file (.tar.gz).
@@ -791,51 +791,71 @@ it may invoke the configuration step (see ``cabal configure``).
 cabal repl
 ^^^^^^^^^^
 
-``cabal repl TARGET`` loads all of the modules of the target into
-GHCi as interpreted bytecode. In addition to ``cabal build``'s flags,
-it additionally takes the ``--repl-options`` and ``--repl-no-load`` flags.
+``cabal repl TARGET [FLAGS]``
+opens an interactive session for the target component within the project and
+loads all of the modules of the target into GHCi as interpreted bytecode.
+The available targets are the same as for the ``build`` command: individual components
+within packages in the project, including libraries, executables, test-suites
+and benchmarks (see `the build section <#cabal-build>`__ for the target syntax).
+Local packages can also be specified, in which case the library
+component in the package will be used, or the (first listed) executable in the
+package if there is no library. Dependencies are built or rebuilt as necessary.
 
-To avoid ``ghci`` specific flags from triggering unneeded global rebuilds these
-flags are now stripped from the internal configuration. As a result
-``--ghc-options`` will no longer (reliably) work to pass flags to ``ghci`` (or
-other repls). Instead, you should use the new ``--repl-options`` flag to
-specify these options to the invoked repl. (This flag also works on ``cabal
-repl`` and ``Setup repl`` on sufficiently new versions of Cabal.)
-
-The ``repl-no-load`` flag disables the loading of target modules at startup.
-
-Currently, it is not supported to pass multiple targets to ``repl``
-(``repl`` will just successively open a separate GHCi session for
-each target.)
-
-It also provides a way to experiment with libraries without needing to download
-them manually or to install them globally.
-
-This command opens a REPL with the current default target loaded, and a version
-of the ``vector`` package matching that specification exposed.
+Examples:
 
 ::
 
-    $ cabal repl --build-depends "vector >= 0.12 && < 0.13"
+    $ cabal repl                # default component in the package in the current directory
+    $ cabal repl pkgname        # default component in the package named 'pkgname'
+    $ cabal repl ./pkgfoo       # default component in the package in the ./pkgfoo directory
+    $ cabal repl cname          # component named 'cname'
+    $ cabal repl pkgname:cname  # component 'cname' in the package 'pkgname'
 
-Both of these commands do the same thing as the above, but only exposes ``base``,
-``vector``, and the ``vector`` package's transitive dependencies even if the user
-is in a project context.
+Configuration flags can be specified on the command line and these extend the project
+configuration from the 'cabal.project', 'cabal.project.local' and other files.
 
-::
+.. option:: --repl-options
 
-    $ cabal repl --ignore-project --build-depends "vector >= 0.12 && < 0.13"
-    $ cabal repl --project='' --build-depends "vector >= 0.12 && < 0.13"
+    To avoid ``ghci``-specific flags from triggering unneeded global rebuilds, these
+    flags are stripped from the internal configuration. As a result,
+    ``--ghc-options`` will no longer (reliably) work to pass flags to ``ghci`` (or
+    other REPLs). Instead, you should use the ``--repl-options`` flag to
+    specify these options to the invoked REPL.
 
-This command would add ``vector``, but not (for example) ``primitive``, because
-it only includes the packages specified on the command line (and ``base``, which
-cannot be excluded for technical reasons).
+.. option:: --repl-no-load
 
-::
+    Disables the loading of target modules at startup.
 
-    $ cabal repl --build-depends vector --no-transitive-deps
+.. option:: -b, --build-depends
 
-``repl`` can open scripts by passing the path to the script as the target.
+    A way to experiment with libraries without needing to download
+    them manually or to install them globally.
+
+    This command opens a REPL with the current default target loaded, and a version
+    of the ``vector`` package matching that specification exposed.
+
+    ::
+
+        $ cabal repl --build-depends "vector >= 0.12 && < 0.13"
+
+    Both of these commands do the same thing as the above, but only expose ``base``,
+    ``vector``, and the ``vector`` package's transitive dependencies even if the user
+    is in a project context.
+
+    ::
+
+        $ cabal repl --ignore-project --build-depends "vector >= 0.12 && < 0.13"
+        $ cabal repl --project='' --build-depends "vector >= 0.12 && < 0.13"
+
+    This command would add ``vector``, but not (for example) ``primitive``, because
+    it only includes the packages specified on the command line (and ``base``, which
+    cannot be excluded for technical reasons).
+
+    ::
+
+        $ cabal repl --build-depends vector --no-transitive-deps
+
+``cabal repl`` can open scripts by passing the path to the script as the target.
 
 ::
 
@@ -844,6 +864,19 @@ cannot be excluded for technical reasons).
 The configuration information for the script is cached under the cabal directory
 and can be pre-built with ``cabal build path/to/script``.
 See ``cabal run`` for more information on scripts.
+
+.. option:: --enable-multi-repl
+
+    Allow starting GHCi with multiple targets.
+    This requires GHC with multiple home unit support (GHC-9.4+)
+
+    The closure of required components will be loaded.
+
+.. option:: --disable-multi-repl
+
+    Disallow starting GHCi with multiple targets. This reverts back to the behaviour
+    in version 3.10 and earlier where only a single component can be loaded at
+    once.
 
 .. _cabal run:
 
@@ -946,12 +979,21 @@ cabal bench
 (all the benchmarks in the current package by default), first ensuring
 they are up to date.
 
+``cabal bench`` inherits flags of the ``bench`` subcommand of ``Setup.hs``,
+:ref:`see the corresponding section <setup-bench>`.
+
 cabal test
 ^^^^^^^^^^
 
 ``cabal test [TARGETS] [OPTIONS]`` runs the specified test suites
 (all the test suites in the current package by default), first ensuring
 they are up to date.
+
+``cabal test`` inherits flags of the ``test`` subcommand of ``Setup.hs``
+(:ref:`see the corresponding section <setup-test>`) with one caveat: every
+``Setup.hs test`` flag receives the ``test-`` prefix if it already does
+not have one; e.g. ``--show-details`` becomes ``--test-show-details`` but
+``--test-wrapper`` remains the same.
 
 cabal exec
 ^^^^^^^^^^
@@ -976,8 +1018,10 @@ Run ``cabal check`` in the folder where your ``.cabal`` package file is.
 
     Set verbosity level (0–3, default is 1).
 
-``cabal check`` mimics Hackage's requirements: if no error or warning
-is reported, Hackage should accept your package.
+Issues are classified as ``Warning``\s and ``Error``\s. The latter correspond
+to Hackage requirements for uploaded packages: if no error is reported,
+Hackage should accept your package. If errors are present ``cabal check``
+exits with ``1`` and Hackage will refuse the package.
 
 cabal sdist
 ^^^^^^^^^^^

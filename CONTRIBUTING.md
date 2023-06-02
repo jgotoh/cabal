@@ -4,7 +4,8 @@ Building Cabal for hacking
 --------------------------
 
 The current recommended way of developing Cabal is to use the
-`v2-build` feature which [shipped in cabal-install-1.24](http://blog.ezyang.com/2016/05/announcing-cabal-new-build-nix-style-local-builds/).  If you use the latest version of cabal published on Hackage, it is sufficient to run:
+`v2-build` feature which [shipped in cabal-install-1.24](http://blog.ezyang.com/2016/05/announcing-cabal-new-build-nix-style-local-builds/).
+If you use the latest version of cabal published on Hackage, it is sufficient to run:
 
 ```
 cabal v2-build cabal
@@ -115,38 +116,36 @@ For these test executables, `-p` which applies a regex filter to the test
 names. When running `cabal-install` test suites, one need only use `cabal test` or
 `cabal run <test-target>` in order to test locally.
 
+QA Notes
+--------
 
-Whitespace Conventions
-----------------------
+Manual Quality Assurance (QA) is performed to ensure that the changes impacting
+the command-line interface, whether adding or modifying a behaviour,
+are tested before being released. This allows us to catch UX regressions and put
+a human perspective into testing.
 
-* No tab characters allowed.
-* No trailing whitespace allowed.
-* File needs to be terminated by a newline character.
+Contributions that touch `cabal-install` are expected to include notes for the QA team.
+They are a description of an expected result upon calling `cabal-install` with certain parameters.
 
-These conventions are enforced by the
-[fix-whitespace](https://hackage.haskell.org/package/fix-whitespace)
-tool.  Install it from hackage as usual (`cabal install fix-whitespace`)
-and run it in the project root to fix whitespace violations.
+For instance:
 
-The files included in the automatic whitespace check are specified in
-`fix-whitespace.yaml`.  Please add to this file if you add textfiles
-to this repository that are not included by the rules given there.
-Note that files that make essential use of tab characters (like `Makefile`)
-should _not_ be included in the automatic check.
+> ## QA Notes
+> Calling `cabal haddock-project` should produce documentation for the whole cabal project with the following defaults enabled:
+> * Documentation lives in ./haddocks
+> * The file `./haddocks/index.html` should exist
 
-Whitespace conventions are enforced by
-[CI](https://github.com/haskell/cabal/actions/workflows/whitespace.yml).
-If you push a fix of a whitespace violation, please do so in a
-_separate commit_.
+Manual QA is not expected to find every possible bug, but to really challenge the assumptions of the contributor, and to verify that their own testing
+of their patch is not influenced by their setup or implicit knowledge of the system.
 
 
+Code Style
+---------------
 
+We use automated formatting with Fourmolu to enforce a unified style across the code bases. It is checked in the CI process.
+You can automatically format the code bases with `make style` at the top level of the project.
 
 Other Conventions
 -----------------
-
-* Try to follow style conventions of a file you are modifying, and
-  avoid gratuitous reformatting (it makes merges harder!)
 
 * Format your commit messages [in the standard way](https://chris.beams.io/posts/git-commit/#seven-rules).
 
@@ -205,10 +204,6 @@ Other Conventions
   f = (+2)
   #endif
   ```
-
-We like [this style guide][guide].
-
-[guide]: https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md
 
 GitHub Ticket Conventions
 -------------------
