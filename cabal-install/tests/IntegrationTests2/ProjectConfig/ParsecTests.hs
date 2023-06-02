@@ -119,7 +119,7 @@ readConfig rootFp projectFileName = do
 
   let projectRoot = ProjectRootExplicit projectRootDir projectFileName
       extensionName = ""
-      distDirLayout = defaultDistDirLayout projectRoot Nothing
+      distDirLayout = defaultDistDirLayout projectRoot Nothing Nothing
       extensionDescription = "description"
       distProjectConfigFp = distProjectFile distDirLayout extensionName
   exists <- doesFileExist distProjectConfigFp
