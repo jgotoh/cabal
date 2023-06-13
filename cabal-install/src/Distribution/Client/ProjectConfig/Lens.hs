@@ -78,6 +78,46 @@ projectConfigSummaryFile :: Lens' ProjectConfigBuildOnly (NubList PathTemplate)
 projectConfigSummaryFile f s = fmap (\x -> s{T.projectConfigSummaryFile = x}) (f (T.projectConfigSummaryFile s))
 {-# INLINEABLE projectConfigSummaryFile #-}
 
-projectConfigSummaryFile' :: Lens' ProjectConfigBuildOnly [PathTemplate]
-projectConfigSummaryFile' f s = fmap (\x -> s{T.projectConfigSummaryFile = toNubList x}) (f (fromNubList $ T.projectConfigSummaryFile s))
-{-# INLINEABLE projectConfigSummaryFile' #-}
+projectConfigLogFile :: Lens' ProjectConfigBuildOnly (Flag PathTemplate)
+projectConfigLogFile f s = fmap (\x -> s{T.projectConfigLogFile = x}) (f (T.projectConfigLogFile s))
+{-# INLINEABLE projectConfigLogFile #-}
+
+projectConfigReportPlanningFailure :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigReportPlanningFailure f s = fmap (\x -> s{T.projectConfigReportPlanningFailure = x}) (f (T.projectConfigReportPlanningFailure s))
+{-# INLINEABLE projectConfigReportPlanningFailure #-}
+
+projectConfigSymlinkBinDir :: Lens' ProjectConfigBuildOnly (Flag FilePath)
+projectConfigSymlinkBinDir f s = fmap (\x -> s{T.projectConfigSymlinkBinDir = x}) (f (T.projectConfigSymlinkBinDir s))
+{-# INLINEABLE projectConfigSymlinkBinDir #-}
+
+projectConfigNumJobs :: Lens' ProjectConfigBuildOnly (Flag (Maybe Int))
+projectConfigNumJobs f s = fmap (\x -> s{T.projectConfigNumJobs = x}) (f (T.projectConfigNumJobs s))
+{-# INLINEABLE projectConfigNumJobs #-}
+
+projectConfigKeepGoing :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigKeepGoing f s = fmap (\x -> s{T.projectConfigKeepGoing = x}) (f (T.projectConfigKeepGoing s))
+{-# INLINEABLE projectConfigKeepGoing #-}
+
+projectConfigOfflineMode :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigOfflineMode f s = fmap (\x -> s{T.projectConfigOfflineMode = x}) (f (T.projectConfigOfflineMode s))
+{-# INLINEABLE projectConfigOfflineMode #-}
+
+projectConfigKeepTempFiles :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigKeepTempFiles f s = fmap (\x -> s{T.projectConfigKeepTempFiles = x}) (f (T.projectConfigKeepTempFiles s))
+{-# INLINEABLE projectConfigKeepTempFiles #-}
+
+projectConfigHttpTransport :: Lens' ProjectConfigBuildOnly (Flag String)
+projectConfigHttpTransport f s = fmap (\x -> s{T.projectConfigHttpTransport = x}) (f (T.projectConfigHttpTransport s))
+{-# INLINEABLE projectConfigHttpTransport #-}
+
+projectConfigIgnoreExpiry :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigIgnoreExpiry f s = fmap (\x -> s{T.projectConfigIgnoreExpiry = x}) (f (T.projectConfigIgnoreExpiry s))
+{-# INLINEABLE projectConfigIgnoreExpiry #-}
+
+projectConfigCacheDir :: Lens' ProjectConfigBuildOnly (Flag FilePath)
+projectConfigCacheDir f s = fmap (\x -> s{T.projectConfigCacheDir = x}) (f (T.projectConfigCacheDir s))
+{-# INLINEABLE projectConfigCacheDir #-}
+
+projectConfigLogsDir :: Lens' ProjectConfigBuildOnly (Flag FilePath)
+projectConfigLogsDir f s = fmap (\x -> s{T.projectConfigLogsDir = x}) (f (T.projectConfigLogsDir s))
+{-# INLINEABLE projectConfigLogsDir #-}
