@@ -5,7 +5,6 @@ module Distribution.Client.ProjectConfig.FieldGrammar
   ( projectConfigFieldGrammar
   ) where
 
-import Distribution.Client.BuildReports.Types (ReportLevel (..))
 import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..))
 import Distribution.Client.Utils.Parsec
@@ -36,16 +35,16 @@ projectConfigBuildOnlyFieldGrammar :: ParsecFieldGrammar' ProjectConfigBuildOnly
 projectConfigBuildOnlyFieldGrammar =
   ProjectConfigBuildOnly
     <$> optionalFieldDef "verbose" L.projectConfigVerbosity (pure normal)
-    <*> pure (toFlag False) -- cli flag: projectConfigDryRun -- TODO may also be NoFlag
-    <*> pure (toFlag False) -- cli flag: projectConfigOnlyDeps
-    <*> pure (toFlag False) -- cli flag: projectConfigOnlyDownload
+    <*> pure mempty -- cli flag: projectConfigDryRun
+    <*> pure mempty -- cli flag: projectConfigOnlyDeps
+    <*> pure mempty -- cli flag: projectConfigOnlyDownload
     <*> monoidalFieldAla "build-summary" (alaNubList VCat) L.projectConfigSummaryFile
     <*> optionalFieldDef "build-log" L.projectConfigLogFile mempty
-    <*> pure (toFlag NoReports) -- cli flag: projectConfigBuildReports
+    <*> pure mempty -- cli flag: projectConfigBuildReports
     <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure (pure False)
     <*> monoidalFieldAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir
     -- TODO check numJobsParser
-    -- <*> optionalFieldDef "jobs" L.projectConfigReportPlanningFailure (pure False)
+    -- <*> optionalFieldDef "jobs" L.projectConfigNumJobs (pure )
     <*> undefined
     <*> undefined
     <*> undefined
