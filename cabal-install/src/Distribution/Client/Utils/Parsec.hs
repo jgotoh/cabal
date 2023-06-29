@@ -4,6 +4,10 @@
 module Distribution.Client.Utils.Parsec
   ( renderParseError
 
+    -- ** Flag
+  , alaFlag
+  , Flag'
+
     -- ** NubList
   , alaNubList
   , alaNubList'
@@ -20,6 +24,7 @@ import qualified Data.ByteString.Char8 as BS8
 
 import Distribution.FieldGrammar.Newtypes
 import Distribution.Parsec (PError (..), PWarning (..), Position (..), showPos, zeroPos)
+import Distribution.Simple.Flag
 import Distribution.Simple.Utils (fromUTF8BS)
 import Distribution.Utils.NubList (NubList (..))
 import qualified Distribution.Utils.NubList as NubList
@@ -116,7 +121,25 @@ advance n z@(Zipper xs ys)
       [] -> z
       (y : ys') -> advance (n - 1) $ Zipper (y : xs) ys'
 
--- | Like 'List', but for 'NubList'.
+-- | Like 'List' for usage with a 'FieldGrammar', but for 'Flag'.
+-- This enables to parse type aliases such as 'FilePath' that do not have 'Parsec' instances
+-- by using newtype variants such as 'FilePathNT'.
+-- For example, if you need to parse a 'Flag FilePath', you can use 'alaFlag' FilePathNT'.
+newtype Flag' b a = Flag' {_getFlag :: Flag a}
+
+-- | 'Flag'' constructor, with additional phantom argument to constrain the resulting type
+alaFlag :: (a -> b) -> Flag a -> Flag' b a
+alaFlag _ = Flag'
+
+instance Newtype (Flag a) (Flag' wrapper a)
+
+instance (Newtype a b, Parsec b) => Parsec (Flag' b a) where
+  parsec = pack . toFlag . (unpack :: b -> a) <$> parsec
+
+instance (Newtype a b, Pretty b) => Pretty (Flag' b a) where
+  pretty = pretty . (pack :: a -> b) . fromFlag . unpack
+
+-- | Like 'List' for usage with a 'FieldGrammar', but for 'NubList'.
 newtype NubList' sep b a = NubList' {_getNubList :: NubList a}
 
 -- | 'alaNubList' and 'alaNubList'' are simply 'NubList'' constructor, with additional phantom
