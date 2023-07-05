@@ -92,23 +92,23 @@ testProjectConfigBuildOnly = do
   assertConfig expected config legacy (projectConfigBuildOnly . condTreeData)
   where
     projectConfigVerbosity = toFlag (toEnum 2)
-    projectConfigDryRun = toFlag False -- cli only
-    projectConfigOnlyDeps = toFlag False -- cli only
-    projectConfigOnlyDownload = toFlag False -- cli only
+    projectConfigDryRun = mempty -- cli only
+    projectConfigOnlyDeps = mempty -- cli only
+    projectConfigOnlyDownload = mempty -- cli only
     projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile"]
-    projectConfigLogFile = toFlag $ toPathTemplate "myLog.log" -- TODO could be build-log
-    projectConfigBuildReports = toFlag NoReports -- TODO maybe cli only?
+    projectConfigLogFile = toFlag $ toPathTemplate "myLog.log"
+    projectConfigBuildReports = mempty -- cli only
     projectConfigReportPlanningFailure = toFlag True
     projectConfigSymlinkBinDir = toFlag "some-bindir"
     projectConfigNumJobs = toFlag $ Just 4
-    projectConfigKeepGoing = toFlag True -- cli only
+    projectConfigKeepGoing = toFlag True
     projectConfigOfflineMode = toFlag True
     projectConfigKeepTempFiles = toFlag True
     projectConfigHttpTransport = toFlag "wget"
     projectConfigIgnoreExpiry = toFlag True
     projectConfigCacheDir = toFlag "some-cache-dir"
     projectConfigLogsDir = toFlag "logs-directory"
-    projectConfigClientInstallFlags = mempty -- TODO are these actually cli only?
+    projectConfigClientInstallFlags = mempty -- cli only
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"

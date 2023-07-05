@@ -41,16 +41,14 @@ projectConfigBuildOnlyFieldGrammar =
     <*> monoidalFieldAla "build-summary" (alaNubList VCat) L.projectConfigSummaryFile
     <*> optionalFieldDef "build-log" L.projectConfigLogFile mempty
     <*> pure mempty -- cli flag: projectConfigBuildReports
-    <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure (pure False)
+    <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure mempty
     <*> monoidalFieldAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir
-    -- TODO check numJobsParser
-    -- <*> optionalFieldDef "jobs" L.projectConfigNumJobs (pure )
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
+    <*> monoidalFieldAla "jobs" (alaFlag NumJobs) L.projectConfigNumJobs
+    <*> optionalFieldDef "keep-going" L.projectConfigKeepGoing mempty
+    <*> optionalFieldDef "offline" L.projectConfigOfflineMode mempty
+    <*> optionalFieldDef "haddock-keep-temp-files" L.projectConfigKeepTempFiles mempty
+    <*> monoidalFieldAla "http-transport" (alaFlag Token) L.projectConfigHttpTransport
+    <*> optionalFieldDef "ignore-expiry" L.projectConfigIgnoreExpiry mempty
+    <*> monoidalFieldAla "remote-repo-cache" (alaFlag FilePathNT) L.projectConfigCacheDir
+    <*> monoidalFieldAla "logs-dir" (alaFlag FilePathNT) L.projectConfigLogsDir
+    <*> pure mempty

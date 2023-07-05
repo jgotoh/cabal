@@ -1,7 +1,7 @@
 verbose: 2
 build-summary: summaryFile
 build-log: myLog.log
-report-planned-failure: true
+report-planning-failure: true
 symlink-bindir: some-bindir
 jobs: 4
 keep-going: true

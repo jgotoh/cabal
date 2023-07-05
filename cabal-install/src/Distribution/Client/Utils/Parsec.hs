@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -12,6 +13,7 @@ module Distribution.Client.Utils.Parsec
   , alaNubList
   , alaNubList'
   , NubList'
+  , NumJobs (..)
   ) where
 
 import Distribution.Client.Compat.Prelude
@@ -23,7 +25,8 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 
 import Distribution.FieldGrammar.Newtypes
-import Distribution.Parsec (PError (..), PWarning (..), Position (..), showPos, zeroPos)
+import Distribution.Parsec (PError (..), PWarning (..), Position (..), showPos, zeroPos, parsecWarning, PWarnType (..))
+import Distribution.Compat.CharParsing
 import Distribution.Simple.Flag
 import Distribution.Simple.Utils (fromUTF8BS)
 import Distribution.Utils.NubList (NubList (..))
@@ -167,3 +170,23 @@ instance (Newtype a b, Ord a, Sep sep, Parsec b) => Parsec (NubList' sep b a) wh
 
 instance (Newtype a b, Sep sep, Pretty b) => Pretty (NubList' sep b a) where
   pretty = prettySep (Proxy :: Proxy sep) . map (pretty . (pack :: a -> b)) . NubList.fromNubList . unpack
+
+newtype NumJobs = NumJobs {getNumJobs :: Maybe Int}
+
+instance Newtype (Maybe Int) NumJobs
+
+instance Parsec NumJobs where
+  parsec = parsecNumJobs
+
+parsecNumJobs :: CabalParsing m => m NumJobs
+parsecNumJobs = ncpus <|> numJobs
+  where
+    ncpus = string "$ncpus" >> return (NumJobs Nothing)
+    numJobs = do
+      num <- integral
+      if num < (1 :: Int)
+        then do
+          parsecWarning PWTOther "The number of jobs should be 1 or more."
+          return (NumJobs Nothing)
+        else return (NumJobs $ Just num)
+
