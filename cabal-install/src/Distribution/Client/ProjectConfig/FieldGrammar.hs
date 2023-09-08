@@ -10,7 +10,6 @@ import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfi
 import Distribution.Client.Utils.Parsec
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
-import Distribution.Simple.Flag
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 import Distribution.Verbosity
@@ -21,7 +20,7 @@ projectConfigFieldGrammar constraintSrc =
     <$> monoidalFieldAla "packages" (alaList' FSep Token') L.projectPackages
     <*> monoidalFieldAla "optional-packages" (alaList' FSep Token') L.projectPackagesOptional
     <*> pure mempty -- source-repository-package stanza
-    <*> monoidalFieldAla "extra-packages" formatPackagesNamedList L.projectPackagesNamed
+    <*> monoidalFieldAla "extra-packages" formatPackageVersionConstraints L.projectPackagesNamed
     <*> blurFieldGrammar L.projectConfigBuildOnly projectConfigBuildOnlyFieldGrammar
     <*> blurFieldGrammar L.projectConfigShared (projectConfigSharedFieldGrammar constraintSrc)
     <*> pure mempty
@@ -29,8 +28,8 @@ projectConfigFieldGrammar constraintSrc =
     <*> pure mempty
     <*> pure mempty
 
-formatPackagesNamedList :: [PackageVersionConstraint] -> List CommaVCat (Identity PackageVersionConstraint) PackageVersionConstraint
-formatPackagesNamedList = alaList CommaVCat
+formatPackageVersionConstraints :: [PackageVersionConstraint] -> List CommaVCat (Identity PackageVersionConstraint) PackageVersionConstraint
+formatPackageVersionConstraints = alaList CommaVCat
 
 projectConfigBuildOnlyFieldGrammar :: ParsecFieldGrammar' ProjectConfigBuildOnly
 projectConfigBuildOnlyFieldGrammar =
@@ -75,12 +74,13 @@ projectConfigSharedFieldGrammar constraintSrc =
     <*> pure mempty -- cli flag: projectConfigStoreDir
     <*> monoidalFieldAla "constraints" (alaList' FSep ProjectConstraints) L.projectConfigConstraints
       ^^^ (fmap . fmap) (\(userConstraint, _) -> (userConstraint, constraintSrc))
-    <*> pure undefined -- projectConfigPreferences [PackageVersionConstraint]
-    <*> pure undefined -- projectConfigCabalVersion Flag Version
-    <*> pure undefined -- projectConfigSolver Flag PreSolver
-    <*> pure undefined -- projectConfigAllowOlder Maybe AllowOlder
-    <*> pure undefined -- projectConfigAllowNewer Maybe AllowNewer
-    <*> pure undefined -- projectConfigWriteGhcEnvironmentFilesPolicy Flag WriteGhcEnvironmentFilesPolicy
+    <*> monoidalFieldAla "preferences" formatPackageVersionConstraints L.projectConfigPreferences
+    <*> monoidalField "cabal-lib-version" L.projectConfigCabalVersion
+    <*> monoidalField "solver" L.projectConfigSolver
+    <*> optionalField "allow-older" L.projectConfigAllowOlder
+    <*> optionalField "allow-newer" L.projectConfigAllowNewer
+    -- <*> pure undefined -- projectConfigWriteGhcEnvironmentFilesPolicy Flag WriteGhcEnvironmentFilesPolicy
+    <*> monoidalField "write-ghc-environment-files" L.projectConfigWriteGhcEnvironmentFilesPolicy
     <*> pure undefined -- projectConfigMaxBackjumps Flag Int
     <*> pure undefined -- projectConfigReorderGoals Flag ReorderGoals
     <*> pure undefined -- projectConfigCountConflicts Flag CountConflicts

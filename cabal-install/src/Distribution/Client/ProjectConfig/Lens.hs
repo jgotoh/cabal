@@ -1,5 +1,6 @@
 module Distribution.Client.ProjectConfig.Lens where
 
+import Distribution.Client.Dependency.Types (PreSolver (..))
 import Distribution.Client.IndexUtils.ActiveRepos
   ( ActiveRepos
   )
@@ -7,7 +8,9 @@ import Distribution.Client.IndexUtils.IndexState (TotalIndexState)
 import Distribution.Client.ProjectConfig.Types (MapMappend, PackageConfig, ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance, ProjectConfigShared)
 import qualified Distribution.Client.ProjectConfig.Types as T
 import Distribution.Client.Targets (UserConstraint)
+import Distribution.Client.Types.AllowNewer (AllowNewer, AllowOlder)
 import Distribution.Client.Types.SourceRepo (SourceRepoList)
+import Distribution.Client.Types.WriteGhcEnvironmentFilesPolicy (WriteGhcEnvironmentFilesPolicy)
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.Compiler (CompilerFlavor (..))
@@ -38,6 +41,7 @@ import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )
+import Distribution.Types.Version (Version)
 import Distribution.Utils.NubList
   ( NubList
   , fromNubList
@@ -172,3 +176,27 @@ projectConfigIndexState f s = fmap (\x -> s{T.projectConfigIndexState = x}) (f (
 projectConfigConstraints :: Lens' ProjectConfigShared [(UserConstraint, ConstraintSource)]
 projectConfigConstraints f s = fmap (\x -> s{T.projectConfigConstraints = x}) (f (T.projectConfigConstraints s))
 {-# INLINEABLE projectConfigConstraints #-}
+
+projectConfigPreferences :: Lens' ProjectConfigShared [PackageVersionConstraint]
+projectConfigPreferences f s = fmap (\x -> s{T.projectConfigPreferences = x}) (f (T.projectConfigPreferences s))
+{-# INLINEABLE projectConfigPreferences #-}
+
+projectConfigCabalVersion :: Lens' ProjectConfigShared (Flag Version)
+projectConfigCabalVersion f s = fmap (\x -> s{T.projectConfigCabalVersion = x}) (f (T.projectConfigCabalVersion s))
+{-# INLINEABLE projectConfigCabalVersion #-}
+
+projectConfigSolver :: Lens' ProjectConfigShared (Flag PreSolver)
+projectConfigSolver f s = fmap (\x -> s{T.projectConfigSolver = x}) (f (T.projectConfigSolver s))
+{-# INLINEABLE projectConfigSolver #-}
+
+projectConfigAllowOlder :: Lens' ProjectConfigShared (Maybe AllowOlder)
+projectConfigAllowOlder f s = fmap (\x -> s{T.projectConfigAllowOlder = x}) (f (T.projectConfigAllowOlder s))
+{-# INLINEABLE projectConfigAllowOlder #-}
+
+projectConfigAllowNewer :: Lens' ProjectConfigShared (Maybe AllowNewer)
+projectConfigAllowNewer f s = fmap (\x -> s{T.projectConfigAllowNewer = x}) (f (T.projectConfigAllowNewer s))
+{-# INLINEABLE projectConfigAllowNewer #-}
+
+projectConfigWriteGhcEnvironmentFilesPolicy :: Lens' ProjectConfigShared (Flag WriteGhcEnvironmentFilesPolicy)
+projectConfigWriteGhcEnvironmentFilesPolicy f s = fmap (\x -> s{T.projectConfigWriteGhcEnvironmentFilesPolicy = x}) (f (T.projectConfigWriteGhcEnvironmentFilesPolicy s))
+{-# INLINEABLE projectConfigWriteGhcEnvironmentFilesPolicy #-}
