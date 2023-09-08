@@ -39,6 +39,7 @@ module Distribution.Simple.Compiler
   , registrationPackageDB
   , absolutePackageDBPaths
   , absolutePackageDBPath
+  , readPackageDb
 
     -- * Support for optimisation levels
   , OptimisationLevel (..)
@@ -179,6 +180,15 @@ data PackageDB
 
 instance Binary PackageDB
 instance Structured PackageDB
+
+-- | Parse a PackageDB stack entry
+--
+-- @since 3.7.0.0
+readPackageDb :: String -> Maybe PackageDB
+readPackageDb "clear" = Nothing
+readPackageDb "global" = Just GlobalPackageDB
+readPackageDb "user" = Just UserPackageDB
+readPackageDb other = Just (SpecificPackageDB other)
 
 -- | We typically get packages from several databases, and stack them
 -- together. This type lets us be explicit about that stacking. For example

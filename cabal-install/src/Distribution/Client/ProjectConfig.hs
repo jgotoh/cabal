@@ -757,7 +757,7 @@ readProjectFileSkeleton
         return mempty
     where
       extensionFile = distProjectFile extensionName
-      readExtensionFile = readAndParseFile Parsec.parseProjectSkeleton
+      readExtensionFile verbosity file = readAndParseFile (Parsec.parseProjectSkeleton file) verbosity file
 
 -- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
 readProjectFileSkeletonLegacy :: Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton

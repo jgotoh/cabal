@@ -13,20 +13,26 @@ module Distribution.Client.Utils.Parsec
   , alaNubList
   , alaNubList'
   , NubList'
+
+    -- ** Newtype wrappers
   , NumJobs (..)
+  , PackageDBNT (..)
+  , ProjectConstraints (..)
   ) where
 
 import Distribution.Client.Compat.Prelude
+import Distribution.Client.Targets (UserConstraint)
 import Distribution.Compat.Newtype
+import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import System.FilePath (normalise)
 import Prelude ()
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
-
-import Distribution.FieldGrammar.Newtypes
-import Distribution.Parsec (PError (..), PWarning (..), Position (..), showPos, zeroPos, parsecWarning, PWarnType (..))
 import Distribution.Compat.CharParsing
+import Distribution.FieldGrammar.Newtypes
+import Distribution.Parsec (PError (..), PWarnType (..), PWarning (..), Position (..), parsecToken, parsecWarning, showPos, zeroPos)
+import Distribution.Simple.Compiler (PackageDB (..), readPackageDb)
 import Distribution.Simple.Flag
 import Distribution.Simple.Utils (fromUTF8BS)
 import Distribution.Utils.NubList (NubList (..))
@@ -40,11 +46,11 @@ renderParseError
   -> [PWarning]
   -> String
 renderParseError filepath contents errors warnings =
-  unlines $
-    [ "Errors encountered when parsing cabal file " <> filepath <> ":"
-    ]
-      ++ renderedErrors
-      ++ renderedWarnings
+  unlines
+    $ [ "Errors encountered when parsing cabal file " <> filepath <> ":"
+      ]
+    ++ renderedErrors
+    ++ renderedWarnings
   where
     filepath' = normalise filepath
 
@@ -171,6 +177,20 @@ instance (Newtype a b, Ord a, Sep sep, Parsec b) => Parsec (NubList' sep b a) wh
 instance (Newtype a b, Sep sep, Pretty b) => Pretty (NubList' sep b a) where
   pretty = prettySep (Proxy :: Proxy sep) . map (pretty . (pack :: a -> b)) . NubList.fromNubList . unpack
 
+-- | We can't write a Parsec instance for Maybe PackageDB. We need to wrap it in a newtype and define the instance.
+newtype PackageDBNT = PackageDBNT {getPackageDBNT :: Maybe PackageDB}
+
+instance Newtype (Maybe PackageDB) PackageDBNT
+
+instance Parsec PackageDBNT where
+  parsec = parsecPackageDB
+
+parsecPackageDB :: CabalParsing m => m PackageDBNT
+parsecPackageDB = do
+  token <- parsecToken
+  return $ PackageDBNT $ readPackageDb token
+
+-- | We can't write a Parsec instance for Maybe Int. We need to wrap it in a newtype and define the instance.
 newtype NumJobs = NumJobs {getNumJobs :: Maybe Int}
 
 instance Newtype (Maybe Int) NumJobs
@@ -178,6 +198,7 @@ instance Newtype (Maybe Int) NumJobs
 instance Parsec NumJobs where
   parsec = parsecNumJobs
 
+-- TODO 6101 unit tests
 parsecNumJobs :: CabalParsing m => m NumJobs
 parsecNumJobs = ncpus <|> numJobs
   where
@@ -189,4 +210,18 @@ parsecNumJobs = ncpus <|> numJobs
           parsecWarning PWTOther "The number of jobs should be 1 or more."
           return (NumJobs Nothing)
         else return (NumJobs $ Just num)
+
+newtype ProjectConstraints = ProjectConstraints {getProjectConstraints :: (UserConstraint, ConstraintSource)}
+
+instance Newtype ((UserConstraint, ConstraintSource)) ProjectConstraints
+
+instance Parsec ProjectConstraints where
+  parsec = parsecProjectConstraints
+
+-- | Parse 'ProjectConstraints'. As the 'CabalParsing' class does not have access to the file we parse,
+-- ConstraintSource is first unknown and we set it afterwards
+parsecProjectConstraints :: CabalParsing m => m ProjectConstraints
+parsecProjectConstraints = do
+  userConstraint <- parsec
+  return $ ProjectConstraints (userConstraint, ConstraintSourceUnknown)
 

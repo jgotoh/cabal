@@ -17,6 +17,7 @@ import Distribution.CabalSpecVersion
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
+import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (projectConfigFieldGrammar)
@@ -42,14 +43,14 @@ import qualified Data.ByteString as BS
 import qualified Text.Parsec as P
 
 -- | Preprocess file and start parsing
-parseProjectSkeleton :: BS.ByteString -> ParseResult ProjectConfigSkeleton
-parseProjectSkeleton bs = do
+parseProjectSkeleton :: FilePath -> BS.ByteString -> ParseResult ProjectConfigSkeleton
+parseProjectSkeleton source bs = do
   case readFields' bs' of
     Right (fs, lexWarnings) -> do
       parseWarnings (toPWarnings lexWarnings)
       for_ invalidUtf8 $ \pos ->
         parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
-      parseCondTree fs
+      parseCondTree source fs
     Left perr -> parseFatalFailure pos (show perr)
       where
         ppos = P.errorPos perr
@@ -71,15 +72,17 @@ partitionConditionals :: [[Section ann]] -> ([Section ann], [Conditional ann])
 partitionConditionals sections = (concat sections, [])
 
 parseCondTree
-  :: [Field Position]
+  :: FilePath
+  -> [Field Position]
   -> ParseResult ProjectConfigSkeleton
-parseCondTree fields0 = do
+parseCondTree source fields0 = do
   -- sections are groups of sections between fields
   let (fs, sectionGroups) = partitionFields fields0
       (sections, conditionals) = partitionConditionals sectionGroups
       msg = show sectionGroups
+      constraintSrc = ConstraintSourceProjectConfig source
   imports <- parseImports fs
-  config <- parseFieldGrammar cabalSpecLatest fs projectConfigFieldGrammar
+  config <- parseFieldGrammar cabalSpecLatest fs (projectConfigFieldGrammar constraintSrc)
   config' <- view stateConfig <$> execStateT (goSections sections) (SectionS config)
   let configSkeleton = CondNode config' imports []
   -- TODO parse conditionals

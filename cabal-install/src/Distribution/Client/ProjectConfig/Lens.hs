@@ -1,14 +1,28 @@
 module Distribution.Client.ProjectConfig.Lens where
 
+import Distribution.Client.IndexUtils.ActiveRepos
+  ( ActiveRepos
+  )
+import Distribution.Client.IndexUtils.IndexState (TotalIndexState)
 import Distribution.Client.ProjectConfig.Types (MapMappend, PackageConfig, ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance, ProjectConfigShared)
 import qualified Distribution.Client.ProjectConfig.Types as T
+import Distribution.Client.Targets (UserConstraint)
 import Distribution.Client.Types.SourceRepo (SourceRepoList)
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
+import Distribution.Compiler (CompilerFlavor (..))
 import Distribution.Package
   ( PackageId
   , PackageName
   , UnitId
+  )
+import Distribution.Simple.Compiler
+  ( Compiler
+  , CompilerFlavor
+  , DebugInfoLevel (..)
+  , OptimisationLevel (..)
+  , PackageDB
+  , ProfDetailLevel
   )
 import Distribution.Simple.InstallDirs
   ( InstallDirs
@@ -20,6 +34,7 @@ import Distribution.Simple.Setup
   , HaddockTarget (..)
   , TestShowDetails (..)
   )
+import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )
@@ -121,3 +136,39 @@ projectConfigCacheDir f s = fmap (\x -> s{T.projectConfigCacheDir = x}) (f (T.pr
 projectConfigLogsDir :: Lens' ProjectConfigBuildOnly (Flag FilePath)
 projectConfigLogsDir f s = fmap (\x -> s{T.projectConfigLogsDir = x}) (f (T.projectConfigLogsDir s))
 {-# INLINEABLE projectConfigLogsDir #-}
+
+projectConfigIgnoreProject :: Lens' ProjectConfigShared (Flag Bool)
+projectConfigIgnoreProject f s = fmap (\x -> s{T.projectConfigIgnoreProject = x}) (f (T.projectConfigIgnoreProject s))
+{-# INLINEABLE projectConfigIgnoreProject #-}
+
+projectConfigHcFlavor :: Lens' ProjectConfigShared (Flag CompilerFlavor)
+projectConfigHcFlavor f s = fmap (\x -> s{T.projectConfigHcFlavor = x}) (f (T.projectConfigHcFlavor s))
+{-# INLINEABLE projectConfigHcFlavor #-}
+
+projectConfigHcPath :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigHcPath f s = fmap (\x -> s{T.projectConfigHcPath = x}) (f (T.projectConfigHcPath s))
+{-# INLINEABLE projectConfigHcPath #-}
+
+projectConfigHcPkg :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigHcPkg f s = fmap (\x -> s{T.projectConfigHcPkg = x}) (f (T.projectConfigHcPkg s))
+{-# INLINEABLE projectConfigHcPkg #-}
+
+projectConfigHaddockIndex :: Lens' ProjectConfigShared (Flag PathTemplate)
+projectConfigHaddockIndex f s = fmap (\x -> s{T.projectConfigHaddockIndex = x}) (f (T.projectConfigHaddockIndex s))
+{-# INLINEABLE projectConfigHaddockIndex #-}
+
+projectConfigPackageDBs :: Lens' ProjectConfigShared [Maybe PackageDB]
+projectConfigPackageDBs f s = fmap (\x -> s{T.projectConfigPackageDBs = x}) (f (T.projectConfigPackageDBs s))
+{-# INLINEABLE projectConfigPackageDBs #-}
+
+projectConfigActiveRepos :: Lens' ProjectConfigShared (Flag ActiveRepos)
+projectConfigActiveRepos f s = fmap (\x -> s{T.projectConfigActiveRepos = x}) (f (T.projectConfigActiveRepos s))
+{-# INLINEABLE projectConfigActiveRepos #-}
+
+projectConfigIndexState :: Lens' ProjectConfigShared (Flag TotalIndexState)
+projectConfigIndexState f s = fmap (\x -> s{T.projectConfigIndexState = x}) (f (T.projectConfigIndexState s))
+{-# INLINEABLE projectConfigIndexState #-}
+
+projectConfigConstraints :: Lens' ProjectConfigShared [(UserConstraint, ConstraintSource)]
+projectConfigConstraints f s = fmap (\x -> s{T.projectConfigConstraints = x}) (f (T.projectConfigConstraints s))
+{-# INLINEABLE projectConfigConstraints #-}
