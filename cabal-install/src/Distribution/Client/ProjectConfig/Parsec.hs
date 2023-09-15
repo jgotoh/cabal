@@ -80,9 +80,8 @@ parseCondTree source fields0 = do
   let (fs, sectionGroups) = partitionFields fields0
       (sections, conditionals) = partitionConditionals sectionGroups
       msg = show sectionGroups
-      constraintSrc = ConstraintSourceProjectConfig source
   imports <- parseImports fs
-  config <- parseFieldGrammar cabalSpecLatest fs (projectConfigFieldGrammar constraintSrc)
+  config <- parseFieldGrammar cabalSpecLatest fs (projectConfigFieldGrammar source)
   config' <- view stateConfig <$> execStateT (goSections sections) (SectionS config)
   let configSkeleton = CondNode config' imports []
   -- TODO parse conditionals

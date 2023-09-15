@@ -5,28 +5,31 @@ module Distribution.Client.ProjectConfig.FieldGrammar
   ( projectConfigFieldGrammar
   ) where
 
+import qualified Data.Set as Set
 import qualified Distribution.Client.ProjectConfig.Lens as L
-import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigShared (..))
+import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..))
 import Distribution.Client.Utils.Parsec
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
-import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
+import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 import Distribution.Verbosity
 
-projectConfigFieldGrammar :: ConstraintSource -> ParsecFieldGrammar' ProjectConfig
-projectConfigFieldGrammar constraintSrc =
+projectConfigFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfig
+projectConfigFieldGrammar source =
   ProjectConfig
     <$> monoidalFieldAla "packages" (alaList' FSep Token') L.projectPackages
     <*> monoidalFieldAla "optional-packages" (alaList' FSep Token') L.projectPackagesOptional
     <*> pure mempty -- source-repository-package stanza
     <*> monoidalFieldAla "extra-packages" formatPackageVersionConstraints L.projectPackagesNamed
     <*> blurFieldGrammar L.projectConfigBuildOnly projectConfigBuildOnlyFieldGrammar
-    <*> blurFieldGrammar L.projectConfigShared (projectConfigSharedFieldGrammar constraintSrc)
+    <*> blurFieldGrammar L.projectConfigShared (projectConfigSharedFieldGrammar source)
+    <*> pure provenance
     <*> pure mempty
     <*> pure mempty
     <*> pure mempty
-    <*> pure mempty
+  where
+    provenance = Set.singleton (Explicit source)
 
 formatPackageVersionConstraints :: [PackageVersionConstraint] -> List CommaVCat (Identity PackageVersionConstraint) PackageVersionConstraint
 formatPackageVersionConstraints = alaList CommaVCat
@@ -53,8 +56,8 @@ projectConfigBuildOnlyFieldGrammar =
     <*> monoidalFieldAla "logs-dir" (alaFlag FilePathNT) L.projectConfigLogsDir
     <*> pure mempty
 
-projectConfigSharedFieldGrammar :: ConstraintSource -> ParsecFieldGrammar' ProjectConfigShared
-projectConfigSharedFieldGrammar constraintSrc =
+projectConfigSharedFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfigShared
+projectConfigSharedFieldGrammar source =
   ProjectConfigShared
     <$> pure mempty -- cli flag: projectConfigDistDir
     <*> pure mempty -- cli flag: projectConfigConfigFile
@@ -73,7 +76,7 @@ projectConfigSharedFieldGrammar constraintSrc =
     <*> monoidalField "index-state" L.projectConfigIndexState
     <*> pure mempty -- cli flag: projectConfigStoreDir
     <*> monoidalFieldAla "constraints" (alaList' FSep ProjectConstraints) L.projectConfigConstraints
-      ^^^ (fmap . fmap) (\(userConstraint, _) -> (userConstraint, constraintSrc))
+      ^^^ (fmap . fmap) (\(userConstraint, _) -> (userConstraint, ConstraintSourceProjectConfig source))
     <*> monoidalFieldAla "preferences" formatPackageVersionConstraints L.projectConfigPreferences
     <*> monoidalField "cabal-lib-version" L.projectConfigCabalVersion
     <*> monoidalField "solver" L.projectConfigSolver
