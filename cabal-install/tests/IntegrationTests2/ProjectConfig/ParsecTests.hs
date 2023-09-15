@@ -6,6 +6,7 @@ module IntegrationTests2.ProjectConfig.ParsecTests (parserTests) where
 import qualified Data.ByteString as BS
 import Data.Either
 import Data.Maybe
+import qualified Data.Set as Set
 import Distribution.Client.Dependency.Types (PreSolver (..))
 import Distribution.Client.DistDirLayout
 import Distribution.Client.HttpUtils
@@ -52,6 +53,7 @@ parserTests =
   , testCase "read source-repository-package" testSourceRepoList
   , testCase "read project-config-build-only" testProjectConfigBuildOnly
   , testCase "read project-shared" testProjectConfigShared
+  , testCase "set explicit provenance" testProjectConfigProvenance
   ]
 
 testPackages :: Assertion
@@ -132,8 +134,7 @@ testProjectConfigShared = do
   let
     projectConfigConstraints = getProjectConfigConstraints projectFileFp
     expected = ProjectConfigShared{..}
-  (config, legacy) <- readConfigDefault rootFp
-  print (projectConfigShared $ condTreeData legacy)
+  (config, _) <- readConfigDefault rootFp
   assertConfig' expected config (projectConfigShared . condTreeData)
   where
     projectConfigDistDir = mempty -- cli only
@@ -150,7 +151,6 @@ testProjectConfigShared = do
     projectConfigRemoteRepos = mempty -- cli only
     projectConfigLocalNoIndexRepos = mempty -- cli only
     projectConfigActiveRepos = Flag (ActiveRepos [ActiveRepo (RepoName "hackage.haskell.org") CombineStrategyMerge, ActiveRepo (RepoName "my-repository") CombineStrategyOverride])
-    -- TODO
     projectConfigIndexState =
       let
         hackageState = IndexStateTime $ fromJust $ simpleParsec "2020-05-06T22:33:27Z"
@@ -189,6 +189,15 @@ testProjectConfigShared = do
     -- but the legacy parser always parses an empty list, maybe we have a bug here
     -- this also does not work if using a single path such as extra-prog-path: /foo/bar, list is always empty
     projectConfigMultiRepl = toFlag True
+
+testProjectConfigProvenance :: Assertion
+testProjectConfigProvenance = do
+  let rootFp = "empty"
+  projectFileFp <- projectConfigPath rootFp "cabal.project" ""
+  let
+    expected = Set.singleton (Explicit projectFileFp)
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigProvenance . condTreeData)
 
 readConfigDefault :: FilePath -> IO (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault rootFp = readConfig rootFp "cabal.project"
