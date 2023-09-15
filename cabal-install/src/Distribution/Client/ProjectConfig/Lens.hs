@@ -38,6 +38,7 @@ import Distribution.Simple.Setup
   , TestShowDetails (..)
   )
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
+import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )
@@ -200,3 +201,43 @@ projectConfigAllowNewer f s = fmap (\x -> s{T.projectConfigAllowNewer = x}) (f (
 projectConfigWriteGhcEnvironmentFilesPolicy :: Lens' ProjectConfigShared (Flag WriteGhcEnvironmentFilesPolicy)
 projectConfigWriteGhcEnvironmentFilesPolicy f s = fmap (\x -> s{T.projectConfigWriteGhcEnvironmentFilesPolicy = x}) (f (T.projectConfigWriteGhcEnvironmentFilesPolicy s))
 {-# INLINEABLE projectConfigWriteGhcEnvironmentFilesPolicy #-}
+
+projectConfigMaxBackjumps :: Lens' ProjectConfigShared (Flag Int)
+projectConfigMaxBackjumps f s = fmap (\x -> s{T.projectConfigMaxBackjumps = x}) (f (T.projectConfigMaxBackjumps s))
+{-# INLINEABLE projectConfigMaxBackjumps #-}
+
+projectConfigReorderGoals :: Lens' ProjectConfigShared (Flag ReorderGoals)
+projectConfigReorderGoals f s = fmap (\x -> s{T.projectConfigReorderGoals = x}) (f (T.projectConfigReorderGoals s))
+{-# INLINEABLE projectConfigReorderGoals #-}
+
+projectConfigCountConflicts :: Lens' ProjectConfigShared (Flag CountConflicts)
+projectConfigCountConflicts f s = fmap (\x -> s{T.projectConfigCountConflicts = x}) (f (T.projectConfigCountConflicts s))
+{-# INLINEABLE projectConfigCountConflicts #-}
+
+projectConfigFineGrainedConflicts :: Lens' ProjectConfigShared (Flag FineGrainedConflicts)
+projectConfigFineGrainedConflicts f s = fmap (\x -> s{T.projectConfigFineGrainedConflicts = x}) (f (T.projectConfigFineGrainedConflicts s))
+{-# INLINEABLE projectConfigFineGrainedConflicts #-}
+
+projectConfigMinimizeConflictSet :: Lens' ProjectConfigShared (Flag MinimizeConflictSet)
+projectConfigMinimizeConflictSet f s = fmap (\x -> s{T.projectConfigMinimizeConflictSet = x}) (f (T.projectConfigMinimizeConflictSet s))
+{-# INLINEABLE projectConfigMinimizeConflictSet #-}
+
+projectConfigStrongFlags :: Lens' ProjectConfigShared (Flag StrongFlags)
+projectConfigStrongFlags f s = fmap (\x -> s{T.projectConfigStrongFlags = x}) (f (T.projectConfigStrongFlags s))
+{-# INLINEABLE projectConfigStrongFlags #-}
+
+projectConfigAllowBootLibInstalls :: Lens' ProjectConfigShared (Flag AllowBootLibInstalls)
+projectConfigAllowBootLibInstalls f s = fmap (\x -> s{T.projectConfigAllowBootLibInstalls = x}) (f (T.projectConfigAllowBootLibInstalls s))
+{-# INLINEABLE projectConfigAllowBootLibInstalls #-}
+
+projectConfigPreferOldest :: Lens' ProjectConfigShared (Flag PreferOldest)
+projectConfigPreferOldest f s = fmap (\x -> s{T.projectConfigPreferOldest = x}) (f (T.projectConfigPreferOldest s))
+{-# INLINEABLE projectConfigPreferOldest #-}
+
+projectConfigProgPathExtra :: Lens' ProjectConfigShared (NubList FilePath)
+projectConfigProgPathExtra f s = fmap (\x -> s{T.projectConfigProgPathExtra = x}) (f (T.projectConfigProgPathExtra s))
+{-# INLINEABLE projectConfigProgPathExtra #-}
+
+projectConfigMultiRepl :: Lens' ProjectConfigShared (Flag Bool)
+projectConfigMultiRepl f s = fmap (\x -> s{T.projectConfigMultiRepl = x}) (f (T.projectConfigMultiRepl s))
+{-# INLINEABLE projectConfigMultiRepl #-}

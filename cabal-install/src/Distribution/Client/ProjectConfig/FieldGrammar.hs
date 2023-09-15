@@ -79,18 +79,18 @@ projectConfigSharedFieldGrammar constraintSrc =
     <*> monoidalField "solver" L.projectConfigSolver
     <*> optionalField "allow-older" L.projectConfigAllowOlder
     <*> optionalField "allow-newer" L.projectConfigAllowNewer
-    -- <*> pure undefined -- projectConfigWriteGhcEnvironmentFilesPolicy Flag WriteGhcEnvironmentFilesPolicy
     <*> monoidalField "write-ghc-environment-files" L.projectConfigWriteGhcEnvironmentFilesPolicy
-    <*> pure undefined -- projectConfigMaxBackjumps Flag Int
-    <*> pure undefined -- projectConfigReorderGoals Flag ReorderGoals
-    <*> pure undefined -- projectConfigCountConflicts Flag CountConflicts
-    <*> pure undefined -- projectConfigFineGrainedConflicts Flag FineGrainedConflicts
-    <*> pure undefined -- projectConfigMinimizeConflictSet Flag MinimizeConflictSet
-    <*> pure undefined -- projectConfigStrongFlags Flag StrongFlags
-    <*> pure undefined -- projectConfigAllowBootLibInstalls Flag AllowBootLibInstalls
-    <*> pure undefined -- projectConfigOnlyConstrained Flag OnlyConstrained
-    <*> pure undefined -- projectConfigPerComponent Flag Bool
-    <*> pure undefined -- projectConfigIndependentGoals Flag IndependentGoals
-    <*> pure undefined -- projectConfigPreferOldest Flag PreferOldest
-    <*> pure undefined -- projectConfigProgPathExtra NubList FilePath
-    <*> pure undefined -- projectConfigMultiRepl Flag Bool
+    <*> monoidalFieldAla "max-backjumps" (alaFlag MaxBackjumps) L.projectConfigMaxBackjumps
+    <*> monoidalField "reorder-goals" L.projectConfigReorderGoals
+    <*> monoidalField "count-conflicts" L.projectConfigCountConflicts
+    <*> monoidalField "fine-grained-conflicts" L.projectConfigFineGrainedConflicts
+    <*> monoidalField "minimize-conflict-set" L.projectConfigMinimizeConflictSet
+    <*> monoidalField "strong-flags" L.projectConfigStrongFlags
+    <*> monoidalField "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls
+    <*> pure mempty -- cli flag: projectConfigOnlyConstrained Flag OnlyConstrained
+    <*> pure mempty -- cli flag: projectConfigPerComponent Flag Bool
+    <*> pure mempty -- cli flag: projectConfigIndependentGoals Flag IndependentGoals
+    <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
+    -- <*> pure mempty -- cli flag: projectConfigProgPathExtra NubList FilePath
+    <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
+    <*> monoidalField "multi-repl" L.projectConfigMultiRepl

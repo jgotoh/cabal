@@ -18,6 +18,7 @@ module Distribution.Client.Utils.Parsec
   , NumJobs (..)
   , PackageDBNT (..)
   , ProjectConstraints (..)
+  , MaxBackjumps (..)
   ) where
 
 import Distribution.Client.Compat.Prelude
@@ -186,9 +187,7 @@ instance Parsec PackageDBNT where
   parsec = parsecPackageDB
 
 parsecPackageDB :: CabalParsing m => m PackageDBNT
-parsecPackageDB = do
-  token <- parsecToken
-  return $ PackageDBNT $ readPackageDb token
+parsecPackageDB = PackageDBNT . readPackageDb <$> parsecToken
 
 -- | We can't write a Parsec instance for Maybe Int. We need to wrap it in a newtype and define the instance.
 newtype NumJobs = NumJobs {getNumJobs :: Maybe Int}
@@ -213,7 +212,7 @@ parsecNumJobs = ncpus <|> numJobs
 
 newtype ProjectConstraints = ProjectConstraints {getProjectConstraints :: (UserConstraint, ConstraintSource)}
 
-instance Newtype ((UserConstraint, ConstraintSource)) ProjectConstraints
+instance Newtype (UserConstraint, ConstraintSource) ProjectConstraints
 
 instance Parsec ProjectConstraints where
   parsec = parsecProjectConstraints
@@ -225,3 +224,12 @@ parsecProjectConstraints = do
   userConstraint <- parsec
   return $ ProjectConstraints (userConstraint, ConstraintSourceUnknown)
 
+newtype MaxBackjumps = MaxBackjumps {getMaxBackjumps :: Int}
+
+instance Newtype Int MaxBackjumps
+
+instance Parsec MaxBackjumps where
+  parsec = parseMaxBackjumps
+
+parseMaxBackjumps :: CabalParsing m => m MaxBackjumps
+parseMaxBackjumps = MaxBackjumps <$> integral

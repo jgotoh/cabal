@@ -42,6 +42,7 @@ import Test.Tasty.HUnit
 
 -- TODO create tests:
 -- - parser tests to read and compare to expected values
+--   - empty cabal.project must be same config in legacy and parsec parser
 -- - golden tests for warnings and errors
 parserTests :: [TestTree]
 parserTests =
@@ -133,7 +134,7 @@ testProjectConfigShared = do
     expected = ProjectConfigShared{..}
   (config, legacy) <- readConfigDefault rootFp
   print (projectConfigShared $ condTreeData legacy)
-  assertConfig expected config legacy (projectConfigShared . condTreeData)
+  assertConfig' expected config (projectConfigShared . condTreeData)
   where
     projectConfigDistDir = mempty -- cli only
     projectConfigConfigFile = mempty -- cli only
@@ -149,12 +150,13 @@ testProjectConfigShared = do
     projectConfigRemoteRepos = mempty -- cli only
     projectConfigLocalNoIndexRepos = mempty -- cli only
     projectConfigActiveRepos = Flag (ActiveRepos [ActiveRepo (RepoName "hackage.haskell.org") CombineStrategyMerge, ActiveRepo (RepoName "my-repository") CombineStrategyOverride])
+    -- TODO
     projectConfigIndexState =
       let
         hackageState = IndexStateTime $ fromJust $ simpleParsec "2020-05-06T22:33:27Z"
         indexState' = insertIndexState (RepoName "hackage.haskell.org") hackageState headTotalIndexState
         headHackageState = IndexStateTime $ fromJust $ simpleParsec "2020-04-29T04:11:05Z"
-        indexState'' = insertIndexState (RepoName "head.hackage") headHackageState headTotalIndexState
+        indexState'' = insertIndexState (RepoName "head.hackage") headHackageState indexState'
        in
         toFlag indexState''
     projectConfigStoreDir = mempty -- cli only
@@ -182,7 +184,7 @@ testProjectConfigShared = do
     projectConfigPerComponent = mempty -- cli only
     projectConfigIndependentGoals = mempty -- cli only
     projectConfigPreferOldest = Flag (PreferOldest True)
-    projectConfigProgPathExtra = mempty
+    projectConfigProgPathExtra = toNubList ["/foo/bar", "/baz/quux"]
     -- TODO ^ I need to investigate this. The project file of this test says the following: extra-prog-path: /foo/bar, /baz/quux
     -- but the legacy parser always parses an empty list, maybe we have a bug here
     -- this also does not work if using a single path such as extra-prog-path: /foo/bar, list is always empty
@@ -203,7 +205,7 @@ readConfig rootFp projectFileName = do
   exists <- doesFileExist distProjectConfigFp
   assertBool ("projectConfig does not exist: " <> distProjectConfigFp) exists
   contents <- BS.readFile distProjectConfigFp
-  let (_, res) = runParseResult $ parseProjectSkeleton contents
+  let (_, res) = runParseResult $ parseProjectSkeleton distProjectConfigFp contents
   assertBool ("should parse successfully: " ++ show res) $ isRight res
   let parsec = fromRight undefined res
   httpTransport <- configureTransport verbosity [] Nothing
