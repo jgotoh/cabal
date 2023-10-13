@@ -1,0 +1,254 @@
+{-# LANGUAGE RecordWildCards #-}
+
+import qualified Data.ByteString as BS
+import Data.Either
+import Data.Maybe
+import qualified Data.Set as Set
+import Distribution.Client.Dependency.Types (PreSolver (..))
+import Distribution.Client.DistDirLayout
+import Distribution.Client.HttpUtils
+import Distribution.Client.IndexUtils.ActiveRepos (ActiveRepoEntry (..), ActiveRepos (..), CombineStrategy (..))
+import Distribution.Client.IndexUtils.IndexState (RepoIndexState (..), headTotalIndexState, insertIndexState)
+import Distribution.Client.ProjectConfig
+import Distribution.Client.ProjectConfig.Parsec
+import Distribution.Client.RebuildMonad (runRebuild)
+import Distribution.Client.Targets (readUserConstraint)
+import Distribution.Client.Types.AllowNewer (AllowNewer (..), AllowOlder (..), RelaxDepMod (..), RelaxDepScope (..), RelaxDepSubject (..), RelaxDeps (..), RelaxedDep (..))
+import Distribution.Client.Types.RepoName (RepoName (..))
+import Distribution.Client.Types.SourceRepo
+import Distribution.Client.Types.WriteGhcEnvironmentFilesPolicy (WriteGhcEnvironmentFilesPolicy (..))
+import Distribution.Compiler (CompilerFlavor (..))
+import Distribution.Parsec (simpleParsec)
+import Distribution.Simple.Compiler (DebugInfoLevel (..), OptimisationLevel (..), PackageDB (..), ProfDetailLevel (..))
+import Distribution.Simple.Flag
+import Distribution.Simple.InstallDirs (toPathTemplate)
+import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
+import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
+import Distribution.Types.CondTree (CondTree (..))
+import Distribution.Types.Flag (FlagAssignment (..), FlagName)
+import Distribution.Types.PackageId (PackageIdentifier (..))
+import Distribution.Types.PackageName
+import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
+import Distribution.Types.SourceRepo (KnownRepoType (..), RepoType (..))
+import Distribution.Types.Version (mkVersion)
+import Distribution.Types.VersionRange.Internal (VersionRange (..))
+import Distribution.Utils.NubList
+import Distribution.Verbosity
+import System.Directory
+import System.FilePath
+
+import Test.Cabal.Prelude hiding (cabal)
+import qualified Test.Cabal.Prelude as P
+
+main = do
+  cabalTest' "read packages" testPackages
+  cabalTest' "read optional-packages" testOptionalPackages
+  cabalTest' "read extra-packages" testExtraPackages
+  cabalTest' "read source-repository-package" testSourceRepoList
+  cabalTest' "read project-config-build-only" testProjectConfigBuildOnly
+  cabalTest' "read project-shared" testProjectConfigShared
+  cabalTest' "set explicit provenance" testProjectConfigProvenance
+
+testPackages :: TestM ()
+testPackages = do
+  let expected = [".", "packages/packages.cabal"]
+  -- Note that I currently also run the legacy parser to make sure my expected values
+  -- do not differ from the non-Parsec implementation, this will be removed in the future
+  (config, legacy) <- readConfigDefault "packages"
+  assertConfig expected config legacy (projectPackages . condTreeData)
+
+testOptionalPackages :: TestM ()
+testOptionalPackages = do
+  let expected = [".", "packages/packages.cabal"]
+  (config, legacy) <- readConfigDefault "optional-packages"
+  assertConfig expected config legacy (projectPackagesOptional . condTreeData)
+
+testSourceRepoList :: TestM ()
+testSourceRepoList = do
+  let expected =
+        [ SourceRepositoryPackage
+            { srpType = KnownRepoType Git
+            , srpLocation = "https://example.com/Project.git"
+            , srpTag = Just "1234"
+            , srpBranch = Nothing
+            , srpSubdir = []
+            , srpCommand = []
+            }
+        , SourceRepositoryPackage
+            { srpType = KnownRepoType Git
+            , srpLocation = "https://example.com/example-dir/"
+            , srpTag = Just "12345"
+            , srpBranch = Nothing
+            , srpSubdir = ["subproject"]
+            , srpCommand = []
+            }
+        ]
+  (config, legacy) <- readConfigDefault "source-repository-packages"
+  assertConfig expected config legacy (projectPackagesRepo . condTreeData)
+
+testExtraPackages :: TestM ()
+testExtraPackages = do
+  let expected =
+        [ PackageVersionConstraint (mkPackageName "a") (OrLaterVersion (mkVersion [0]))
+        , PackageVersionConstraint (mkPackageName "b") (IntersectVersionRanges (OrLaterVersion (mkVersion [0, 7, 3])) (EarlierVersion (mkVersion [0, 9])))
+        ]
+  (config, legacy) <- readConfigDefault "extra-packages"
+  assertConfig expected config legacy (projectPackagesNamed . condTreeData)
+
+testProjectConfigBuildOnly :: TestM ()
+testProjectConfigBuildOnly = do
+  let expected = ProjectConfigBuildOnly{..}
+  (config, legacy) <- readConfigDefault "project-config-build-only"
+  assertConfig expected config legacy (projectConfigBuildOnly . condTreeData)
+  where
+    projectConfigVerbosity = toFlag (toEnum 2)
+    projectConfigDryRun = mempty -- cli only
+    projectConfigOnlyDeps = mempty -- cli only
+    projectConfigOnlyDownload = mempty -- cli only
+    projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile"]
+    projectConfigLogFile = toFlag $ toPathTemplate "myLog.log"
+    projectConfigBuildReports = mempty -- cli only
+    projectConfigReportPlanningFailure = toFlag True
+    projectConfigSymlinkBinDir = toFlag "some-bindir"
+    projectConfigNumJobs = toFlag $ Just 4
+    projectConfigKeepGoing = toFlag True
+    projectConfigOfflineMode = toFlag True
+    projectConfigKeepTempFiles = toFlag True
+    projectConfigHttpTransport = toFlag "wget"
+    projectConfigIgnoreExpiry = toFlag True
+    projectConfigCacheDir = toFlag "some-cache-dir"
+    projectConfigLogsDir = toFlag "logs-directory"
+    projectConfigClientInstallFlags = mempty -- cli only
+
+testProjectConfigShared :: TestM ()
+testProjectConfigShared = do
+  let rootFp = "project-config-shared"
+  testDir <- testDirInfo rootFp "cabal.project"
+  let
+    projectConfigConstraints = getProjectConfigConstraints (testDirProjectConfigFp testDir)
+    expected = ProjectConfigShared{..}
+  (config, _) <- readConfigDefault rootFp
+  assertConfig' expected config (projectConfigShared . condTreeData)
+  where
+    projectConfigDistDir = mempty -- cli only
+    projectConfigConfigFile = mempty -- cli only
+    projectConfigProjectDir = mempty -- cli only
+    projectConfigProjectFile = mempty -- cli only
+    projectConfigIgnoreProject = toFlag True
+    projectConfigHcFlavor = toFlag GHCJS
+    projectConfigHcPath = toFlag "/some/path/to/compiler"
+    projectConfigHcPkg = toFlag "/some/path/to/ghc-pkg"
+    projectConfigHaddockIndex = toFlag $ toPathTemplate "/path/to/haddock-index"
+    projectConfigInstallDirs = mempty -- cli only
+    projectConfigPackageDBs = [Nothing, Just (SpecificPackageDB "foo"), Nothing, Just (SpecificPackageDB "bar"), Just (SpecificPackageDB "baz")]
+    projectConfigRemoteRepos = mempty -- cli only
+    projectConfigLocalNoIndexRepos = mempty -- cli only
+    projectConfigActiveRepos = Flag (ActiveRepos [ActiveRepo (RepoName "hackage.haskell.org") CombineStrategyMerge, ActiveRepo (RepoName "my-repository") CombineStrategyOverride])
+    projectConfigIndexState =
+      let
+        hackageState = IndexStateTime $ fromJust $ simpleParsec "2020-05-06T22:33:27Z"
+        indexState' = insertIndexState (RepoName "hackage.haskell.org") hackageState headTotalIndexState
+        headHackageState = IndexStateTime $ fromJust $ simpleParsec "2020-04-29T04:11:05Z"
+        indexState'' = insertIndexState (RepoName "head.hackage") headHackageState indexState'
+       in
+        toFlag indexState''
+    projectConfigStoreDir = mempty -- cli only
+    getProjectConfigConstraints projectFileFp =
+      let
+        bar = fromRight (error "error parsing bar") $ readUserConstraint "bar == 2.1"
+        barFlags = fromRight (error "error parsing bar flags") $ readUserConstraint "bar +foo -baz"
+        source = ConstraintSourceProjectConfig projectFileFp
+       in
+        [(bar, source), (barFlags, source)]
+    projectConfigPreferences = [PackageVersionConstraint (mkPackageName "foo") (ThisVersion (mkVersion [0, 9])), PackageVersionConstraint (mkPackageName "baz") (LaterVersion (mkVersion [2, 0]))]
+    projectConfigCabalVersion = Flag (mkVersion [1, 24, 0, 1])
+    projectConfigSolver = Flag AlwaysModular
+    projectConfigAllowOlder = Just (AllowOlder $ RelaxDepsSome [RelaxedDep RelaxDepScopeAll RelaxDepModNone (RelaxDepSubjectPkg (mkPackageName "dep")), RelaxedDep (RelaxDepScopePackageId (PackageIdentifier (mkPackageName "pkga") (mkVersion [1, 1, 2]))) RelaxDepModNone (RelaxDepSubjectPkg (mkPackageName "dep-pkg"))])
+    projectConfigAllowNewer = Just (AllowNewer $ RelaxDepsSome [RelaxedDep (RelaxDepScopePackageId (PackageIdentifier (mkPackageName "pkgb") (mkVersion [1, 2, 3]))) RelaxDepModNone (RelaxDepSubjectPkg (mkPackageName "dep-pkgb")), RelaxedDep RelaxDepScopeAll RelaxDepModNone (RelaxDepSubjectPkg (mkPackageName "importantlib"))])
+    projectConfigWriteGhcEnvironmentFilesPolicy = Flag AlwaysWriteGhcEnvironmentFiles
+    projectConfigMaxBackjumps = toFlag 42
+    projectConfigReorderGoals = Flag (ReorderGoals True)
+    projectConfigCountConflicts = Flag (CountConflicts False)
+    projectConfigFineGrainedConflicts = Flag (FineGrainedConflicts False)
+    projectConfigMinimizeConflictSet = Flag (MinimizeConflictSet True)
+    projectConfigStrongFlags = Flag (StrongFlags True)
+    projectConfigAllowBootLibInstalls = Flag (AllowBootLibInstalls True)
+    projectConfigOnlyConstrained = mempty -- cli only
+    projectConfigPerComponent = mempty -- cli only
+    projectConfigIndependentGoals = mempty -- cli only
+    projectConfigPreferOldest = Flag (PreferOldest True)
+    projectConfigProgPathExtra = toNubList ["/foo/bar", "/baz/quux"]
+    -- TODO ^ I need to investigate this. The project file of this test says the following: extra-prog-path: /foo/bar, /baz/quux
+    -- but the legacy parser always parses an empty list, maybe we have a bug here
+    -- this also does not work if using a single path such as extra-prog-path: /foo/bar, list is always empty
+    projectConfigMultiRepl = toFlag True
+
+testProjectConfigProvenance :: TestM ()
+testProjectConfigProvenance = do
+  let rootFp = "empty"
+  testDir <- testDirInfo rootFp "cabal.project"
+  let
+    expected = Set.singleton (Explicit (testDirProjectConfigFp testDir))
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigProvenance . condTreeData)
+
+
+readConfigDefault :: FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)
+readConfigDefault testSubDir = readConfig testSubDir "cabal.project"
+
+readConfig :: FilePath -> FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)
+readConfig testSubDir projectFileName = do
+  (TestDir testRootFp projectConfigFp distDirLayout) <- testDirInfo testSubDir projectFileName
+  exists <- liftIO $ doesFileExist projectConfigFp
+  assertBool ("projectConfig does not exist: " <> projectConfigFp) exists
+
+  contents <- liftIO $ BS.readFile projectConfigFp
+  let (_, res) = runParseResult $ parseProjectSkeleton projectConfigFp contents
+  assertBool ("Did not parse successfully: " ++ show res) $ isRight res
+  let parsec = fromRight undefined res
+  httpTransport <- liftIO $ configureTransport verbosity [] Nothing
+  let extensionName = ""
+      extensionDescription = ""
+  legacy <-
+    liftIO $
+      runRebuild testRootFp $
+        readProjectFileSkeletonLegacy verbosity httpTransport distDirLayout extensionName extensionDescription
+  return (parsec, legacy)
+
+data TestDir = TestDir
+  { testDirTestRootFp :: FilePath
+  -- ^ Every test has its own root in ./tests/<test-title>
+  , testDirProjectConfigFp :: FilePath
+  -- ^ Every test has a project config in testDirTestRootFp/cabal.project
+  , testDirDistDirLayout :: DistDirLayout
+  }
+
+testDirInfo :: FilePath -> FilePath -> TestM TestDir
+testDirInfo testSubDir projectFileName = do
+  testEnv <- getTestEnv
+  testRootFp <- liftIO $ canonicalizePath (testCurrentDir testEnv </> "tests" </> testSubDir)
+  let
+    projectRoot = ProjectRootExplicit testRootFp projectFileName
+    distDirLayout = defaultDistDirLayout projectRoot Nothing Nothing
+    extensionName = ""
+    projectConfigFp = distProjectFile distDirLayout extensionName
+  return $ TestDir testRootFp projectConfigFp distDirLayout
+  where
+    extensionName = ""
+
+assertConfig' :: (Eq a, Show a) => a -> ProjectConfigSkeleton -> (ProjectConfigSkeleton -> a) -> TestM ()
+assertConfig' expected config access = assertEqual "Parsec Config" expected actual
+  where
+    actual = access config
+
+assertConfig :: (Eq a, Show a) => a -> ProjectConfigSkeleton -> ProjectConfigSkeleton -> (ProjectConfigSkeleton -> a) -> TestM ()
+assertConfig expected config configLegacy access = do
+  assertEqual "Equal Legacy Config" expected actualLegacy
+  assertEqual "Equal Parsec Config" expected actual
+  where
+    actual = access config
+    actualLegacy = access configLegacy
+
+-- | Test Utilities
+verbosity :: Verbosity
+verbosity = normal -- minBound --normal --verbose --maxBound --minBound
