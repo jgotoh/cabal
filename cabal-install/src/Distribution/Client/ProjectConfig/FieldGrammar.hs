@@ -7,7 +7,7 @@ module Distribution.Client.ProjectConfig.FieldGrammar
 
 import qualified Data.Set as Set
 import qualified Distribution.Client.ProjectConfig.Lens as L
-import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..))
+import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..), PackageConfig (..))
 import Distribution.Client.Utils.Parsec
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
@@ -26,8 +26,12 @@ projectConfigFieldGrammar source =
     <*> blurFieldGrammar L.projectConfigShared (projectConfigSharedFieldGrammar source)
     <*> pure provenance
     <*> pure mempty
+    -- ^ PackageConfig to be applied to all packages, specified inside 'package *' stanza
+    -- <*> blurFieldGrammar L.projectConfigLocalPackages packageConfigFieldGrammar
     <*> pure mempty
+    -- ^ PackageConfig to be applied to locally built packages, specified not inside a stanza
     <*> pure mempty
+    -- ^ PackageConfig applied to explicitly named packages
   where
     provenance = Set.singleton (Explicit source)
 
@@ -90,10 +94,75 @@ projectConfigSharedFieldGrammar source =
     <*> monoidalField "minimize-conflict-set" L.projectConfigMinimizeConflictSet
     <*> monoidalField "strong-flags" L.projectConfigStrongFlags
     <*> monoidalField "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls
-    <*> pure mempty -- cli flag: projectConfigOnlyConstrained Flag OnlyConstrained
-    <*> pure mempty -- cli flag: projectConfigPerComponent Flag Bool
-    <*> pure mempty -- cli flag: projectConfigIndependentGoals Flag IndependentGoals
+    <*> pure mempty -- cli flag: projectConfigOnlyConstrained
+    <*> pure mempty -- cli flag: projectConfigPerComponent
+    <*> pure mempty -- cli flag: projectConfigIndependentGoals
     <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
-    -- <*> pure mempty -- cli flag: projectConfigProgPathExtra NubList FilePath
+    -- <*> pure mempty -- cli flag: projectConfigProgPathExtra
     <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
     <*> monoidalField "multi-repl" L.projectConfigMultiRepl
+
+packageConfigFieldGrammar :: ParsecFieldGrammar' PackageConfig
+packageConfigFieldGrammar =
+  PackageConfig
+    <$> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined
+    <*> undefined

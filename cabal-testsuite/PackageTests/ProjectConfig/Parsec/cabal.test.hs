@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 import qualified Data.ByteString as BS
 import Data.Either
+import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
 import Distribution.Client.Dependency.Types (PreSolver (..))
@@ -22,10 +24,11 @@ import Distribution.Parsec (simpleParsec)
 import Distribution.Simple.Compiler (DebugInfoLevel (..), OptimisationLevel (..), PackageDB (..), ProfDetailLevel (..))
 import Distribution.Simple.Flag
 import Distribution.Simple.InstallDirs (toPathTemplate)
+import Distribution.Simple.Setup (DumpBuildInfo (..), Flag, HaddockTarget (..), TestShowDetails (..))
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
 import Distribution.Types.CondTree (CondTree (..))
-import Distribution.Types.Flag (FlagAssignment (..), FlagName)
+import Distribution.Types.Flag (FlagAssignment (..), FlagName, mkFlagAssignment)
 import Distribution.Types.PackageId (PackageIdentifier (..))
 import Distribution.Types.PackageName
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
@@ -40,14 +43,16 @@ import System.FilePath
 import Test.Cabal.Prelude hiding (cabal)
 import qualified Test.Cabal.Prelude as P
 
+-- TODO create test: test that cli only options are really not parsed
 main = do
   cabalTest' "read packages" testPackages
   cabalTest' "read optional-packages" testOptionalPackages
   cabalTest' "read extra-packages" testExtraPackages
   cabalTest' "read source-repository-package" testSourceRepoList
   cabalTest' "read project-config-build-only" testProjectConfigBuildOnly
-  cabalTest' "read project-shared" testProjectConfigShared
+  cabalTest' "read project-config-shared" testProjectConfigShared
   cabalTest' "set explicit provenance" testProjectConfigProvenance
+  cabalTest' "read project-config-local-packages" testProjectConfigLocalPackages
 
 testPackages :: TestM ()
 testPackages = do
@@ -192,6 +197,86 @@ testProjectConfigProvenance = do
   (config, legacy) <- readConfigDefault rootFp
   assertConfig expected config legacy (projectConfigProvenance . condTreeData)
 
+testProjectConfigLocalPackages :: TestM ()
+testProjectConfigLocalPackages = do
+  let rootFp = "project-config-local-packages"
+  let expected = PackageConfig{..}
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigLocalPackages . condTreeData)
+  where
+    -- TODO About progname-locations: there is a mistake in our docs
+    -- https://cabal.readthedocs.io/en/stable/cabal-project.html#package-configuration-options
+    -- they say: "They take the form progname-options and progname-location, and can be set for all local packages in a program-options stanza or under a package stanza."
+    -- You would think that the following is valid in a .project file (because progname-location is under program-options stanza):
+    -- program-options
+    --     ghc-location: /tmp/bin/ghc
+    --     gcc-location: /tmp/bin/gcc
+    -- but you get Unrecognized field 'gcc-location', same for ghc
+    -- You need to move the locations into a program-locations stanza to get it working
+    packageConfigProgramPaths = MapLast $ Map.fromList [("ghc", "/tmp/bin/ghc"), ("gcc", "/tmp/bin/gcc")]
+    packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-fno-state-hack", "-foo"]), ("gcc", ["-baz", "-quux"])]
+    packageConfigProgramPathExtra = toNubList ["/tmp/bin/extra", "/usr/local/bin"]
+    packageConfigFlagAssignment = mkFlagAssignment [("foo", True), ("bar", False)]
+    packageConfigVanillaLib = Flag False
+    packageConfigSharedLib = Flag True
+    packageConfigStaticLib = Flag True
+    packageConfigDynExe = Flag True
+    packageConfigFullyStaticExe = Flag True
+    packageConfigProf = Flag True
+    packageConfigProfLib = Flag True
+    packageConfigProfExe = Flag True
+    packageConfigProfDetail = Flag ProfDetailAllFunctions
+    packageConfigProfLibDetail = Flag ProfDetailExportedFunctions
+    packageConfigConfigureArgs = ["-some-arg", "/some/path"]
+    packageConfigOptimization = Flag MaximumOptimisation
+    packageConfigProgPrefix = Flag $ toPathTemplate "another/path"
+    packageConfigProgSuffix = Flag $ toPathTemplate "and/another/path"
+    packageConfigExtraLibDirs = ["so", "many", "lib/dirs"]
+    packageConfigExtraLibDirsStatic = ["a/few", "static/lib/dirs"] -- TODO this is not documented in readthedocs
+    packageConfigExtraFrameworkDirs = ["osx/framework", "dirs"]
+    packageConfigExtraIncludeDirs = ["incredible/amount", "of", "include", "directories"]
+    packageConfigGHCiLib = Flag False
+    packageConfigSplitSections = Flag True
+    packageConfigSplitObjs = Flag True
+    packageConfigStripExes = Flag False
+    packageConfigStripLibs = Flag False -- TODO library-stripping missing default value in readthedocs
+    packageConfigTests = Flag True
+    packageConfigBenchmarks = Flag True
+    packageConfigCoverage = Flag True
+    packageConfigRelocatable = Flag True
+    packageConfigDebugInfo = Flag MaximalDebugInfo
+    packageConfigDumpBuildInfo = Flag DumpBuildInfo
+    packageConfigRunTests = Flag True
+    packageConfigDocumentation = Flag True
+    -- Haddock options
+    packageConfigHaddockHoogle = Flag True
+    packageConfigHaddockHtml = Flag False
+    packageConfigHaddockHtmlLocation = Flag "http://hackage.haskell.org/packages/archive/$pkg/latest/doc/html"
+    packageConfigHaddockForeignLibs = Flag True -- TODO not documented in readthedocs
+    packageConfigHaddockExecutables = Flag True
+    packageConfigHaddockTestSuites = Flag True
+    packageConfigHaddockBenchmarks = Flag True
+    packageConfigHaddockInternal = Flag True
+    packageConfigHaddockCss = Flag "some/path/to/file.css"
+    packageConfigHaddockLinkedSource = Flag True
+    packageConfigHaddockQuickJump = Flag True
+    packageConfigHaddockHscolourCss = Flag "another/path/to/hscolour.css"
+    packageConfigHaddockContents = Flag $ toPathTemplate "https://example.com/$pkg/contents"
+    packageConfigHaddockIndex = Flag $ toPathTemplate "separately-generated/HTML/index"
+    packageConfigHaddockBaseUrl = Flag "https://example.com/haddock-base-url"
+    packageConfigHaddockLib = Flag "/haddock/static"
+    packageConfigHaddockOutputDir = Flag "/haddock/output"
+    -- TODO not documented (like lots of haddock flags)
+    packageConfigHaddockForHackage = Flag ForHackage
+    -- TODO Also I think lots of the following test options are not documented
+    packageConfigTestHumanLog = Flag $ toPathTemplate "human-log.log"
+    packageConfigTestMachineLog = Flag $ toPathTemplate "machine.log"
+    packageConfigTestShowDetails = Flag Streaming
+    packageConfigTestKeepTix = Flag True
+    packageConfigTestWrapper = Flag "/test-wrapper-path/"
+    packageConfigTestFailWhenNoTestSuites = Flag True
+    packageConfigTestTestOptions = [toPathTemplate "--some-option", toPathTemplate "42"]
+    packageConfigBenchmarkOptions = [toPathTemplate "--some-benchmark-option", toPathTemplate "--another-option"]
 
 readConfigDefault :: FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault testSubDir = readConfig testSubDir "cabal.project"
