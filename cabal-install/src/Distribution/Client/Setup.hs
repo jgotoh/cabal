@@ -93,7 +93,7 @@ import Distribution.Client.Compat.Prelude hiding (get)
 import Prelude ()
 
 import Distribution.Client.Types.AllowNewer (AllowNewer (..), AllowOlder (..), RelaxDeps (..))
-import Distribution.Client.Types.Credentials (Password (..), Username (..))
+import Distribution.Client.Types.Credentials (Password (..), Token (..), Username (..))
 import Distribution.Client.Types.Repo (LocalRepo (..), RemoteRepo (..))
 import Distribution.Client.Types.WriteGhcEnvironmentFilesPolicy
 
@@ -116,6 +116,8 @@ import Distribution.Client.Targets
   ( UserConstraint
   , readUserConstraint
   )
+import Distribution.Deprecated.ParseUtils (parseSpaceList, parseTokenQ)
+import Distribution.Deprecated.ReadP (readP_to_E)
 import Distribution.Utils.NubList
   ( NubList
   , fromNubList
@@ -189,7 +191,6 @@ import Distribution.Simple.Setup
   , boolOpt
   , boolOpt'
   , falseArg
-  , optionNumJobs
   , optionVerbosity
   , readPackageDbList
   , showPackageDbList
@@ -501,17 +502,17 @@ globalCommand commands =
               )
               ""
               ["nix"] -- Must be empty because we need to return PP.empty from viewAsFieldDescr
-              "Nix integration: run commands through nix-shell if a 'shell.nix' file exists (default is False)"
+              "[DEPRECATED] Nix integration: run commands through nix-shell if a 'shell.nix' file exists (default is False)"
           , noArg
               (Flag True)
               []
               ["enable-nix"]
-              "Enable Nix integration: run commands through nix-shell if a 'shell.nix' file exists"
+              "[DEPRECATED] Enable Nix integration: run commands through nix-shell if a 'shell.nix' file exists"
           , noArg
               (Flag False)
               []
               ["disable-nix"]
-              "Disable Nix integration"
+              "[DEPRECATED] Disable Nix integration"
           ]
       , option
           []
@@ -932,7 +933,7 @@ configureExOptions _showOrParseArgs src =
       ( optArg
           "DEPS"
           (parsecToReadEErr unexpectMsgString relaxDepsParser)
-          (Just RelaxDepsAll)
+          (show RelaxDepsAll, Just RelaxDepsAll)
           relaxDepsPrinter
       )
   , option
@@ -944,7 +945,7 @@ configureExOptions _showOrParseArgs src =
       ( optArg
           "DEPS"
           (parsecToReadEErr unexpectMsgString relaxDepsParser)
-          (Just RelaxDepsAll)
+          (show RelaxDepsAll, Just RelaxDepsAll)
           relaxDepsPrinter
       )
   , option
@@ -1647,7 +1648,8 @@ runCommand =
 -- ------------------------------------------------------------
 
 data ReportFlags = ReportFlags
-  { reportUsername :: Flag Username
+  { reportToken :: Flag Token
+  , reportUsername :: Flag Username
   , reportPassword :: Flag Password
   , reportVerbosity :: Flag Verbosity
   }
@@ -1656,7 +1658,8 @@ data ReportFlags = ReportFlags
 defaultReportFlags :: ReportFlags
 defaultReportFlags =
   ReportFlags
-    { reportUsername = mempty
+    { reportToken = mempty
+    , reportUsername = mempty
     , reportPassword = mempty
     , reportVerbosity = toFlag normal
     }
@@ -1669,10 +1672,22 @@ reportCommand =
     , commandDescription = Nothing
     , commandNotes = Just $ \_ ->
         "You can store your Hackage login in the ~/.config/cabal/config file\n"
+          ++ "(the %APPDATA%\\cabal\\config file on Windows)\n"
     , commandUsage = usageAlternatives "report" ["[FLAGS]"]
     , commandDefaultFlags = defaultReportFlags
     , commandOptions = \_ ->
         [ optionVerbosity reportVerbosity (\v flags -> flags{reportVerbosity = v})
+        , option
+            ['t']
+            ["token"]
+            "Hackage authentication Token."
+            reportToken
+            (\v flags -> flags{reportToken = v})
+            ( reqArg'
+                "TOKEN"
+                (toFlag . Token)
+                (flagToList . fmap unToken)
+            )
         , option
             ['u']
             ["username"]
@@ -1764,7 +1779,7 @@ getCommand =
                     (const "invalid source-repository")
                     (fmap (toFlag . Just) parsec)
                 )
-                (Flag Nothing)
+                ("", Flag Nothing)
                 (map (fmap show) . flagToList)
             )
         , option
@@ -2072,6 +2087,7 @@ data InstallFlags = InstallFlags
     installSymlinkBinDir :: Flag FilePath
   , installPerComponent :: Flag Bool
   , installNumJobs :: Flag (Maybe Int)
+  , installUseSemaphore :: Flag Bool
   , installKeepGoing :: Flag Bool
   , installRunTests :: Flag Bool
   , installOfflineMode :: Flag Bool
@@ -2114,6 +2130,7 @@ defaultInstallFlags =
     , installSymlinkBinDir = mempty
     , installPerComponent = Flag True
     , installNumJobs = mempty
+    , installUseSemaphore = Flag False
     , installKeepGoing = Flag False
     , installRunTests = mempty
     , installOfflineMode = Flag False
@@ -2575,6 +2592,13 @@ installOptions showOrParseArgs =
           installRunTests
           (\v flags -> flags{installRunTests = v})
           trueArg
+       , option
+          []
+          ["semaphore"]
+          "Use a semaphore so GHC can compile components in parallel"
+          installUseSemaphore
+          (\v flags -> flags{installUseSemaphore = v})
+          (yesNoOpt showOrParseArgs)
        , optionNumJobs
           installNumJobs
           (\v flags -> flags{installNumJobs = v})
@@ -2606,6 +2630,34 @@ installOptions showOrParseArgs =
         ]
       _ -> []
 
+optionNumJobs
+  :: (flags -> Flag (Maybe Int))
+  -> (Flag (Maybe Int) -> flags -> flags)
+  -> OptionField flags
+optionNumJobs get set =
+  option
+    "j"
+    ["jobs"]
+    "Run NUM jobs simultaneously (or '$ncpus' if no NUM is given)."
+    get
+    set
+    ( optArg
+        "NUM"
+        (fmap Flag numJobsParser)
+        ("", Flag Nothing)
+        (map (Just . maybe "$ncpus" show) . flagToList)
+    )
+  where
+    numJobsParser :: ReadE (Maybe Int)
+    numJobsParser = ReadE $ \s ->
+      case s of
+        "$ncpus" -> Right Nothing
+        _ -> case reads s of
+          [(n, "")]
+            | n < 1 -> Left "The number of jobs should be 1 or more."
+            | otherwise -> Right (Just n)
+          _ -> Left "The jobs value should be a number or '$ncpus'"
+
 instance Monoid InstallFlags where
   mempty = gmempty
   mappend = (<>)
@@ -2626,6 +2678,7 @@ data IsCandidate = IsCandidate | IsPublished
 data UploadFlags = UploadFlags
   { uploadCandidate :: Flag IsCandidate
   , uploadDoc :: Flag Bool
+  , uploadToken :: Flag Token
   , uploadUsername :: Flag Username
   , uploadPassword :: Flag Password
   , uploadPasswordCmd :: Flag [String]
@@ -2638,6 +2691,7 @@ defaultUploadFlags =
   UploadFlags
     { uploadCandidate = toFlag IsCandidate
     , uploadDoc = toFlag False
+    , uploadToken = mempty
     , uploadUsername = mempty
     , uploadPassword = mempty
     , uploadPasswordCmd = mempty
@@ -2652,7 +2706,8 @@ uploadCommand =
     , commandDescription = Nothing
     , commandNotes = Just $ \_ ->
         "You can store your Hackage login in the ~/.config/cabal/config file\n"
-          ++ relevantConfigValuesText ["username", "password", "password-command"]
+          ++ "(the %APPDATA%\\cabal\\config file on Windows)\n"
+          ++ relevantConfigValuesText ["token", "username", "password", "password-command"]
     , commandUsage = \pname ->
         "Usage: " ++ pname ++ " upload [FLAGS] TARFILES\n"
     , commandDefaultFlags = defaultUploadFlags
@@ -2678,6 +2733,17 @@ uploadCommand =
             uploadDoc
             (\v flags -> flags{uploadDoc = v})
             trueArg
+        , option
+            ['t']
+            ["token"]
+            "Hackage authentication token."
+            uploadToken
+            (\v flags -> flags{uploadToken = v})
+            ( reqArg'
+                "TOKEN"
+                (toFlag . Token)
+                (flagToList . fmap unToken)
+            )
         , option
             ['u']
             ["username"]
@@ -2706,7 +2772,14 @@ uploadCommand =
             "Command to get Hackage password."
             uploadPasswordCmd
             (\v flags -> flags{uploadPasswordCmd = v})
-            (reqArg' "PASSWORD" (Flag . words) (fromMaybe [] . flagToMaybe))
+            ( reqArg
+                "COMMAND"
+                ( readP_to_E
+                    ("Cannot parse command: " ++)
+                    (Flag <$> parseSpaceList parseTokenQ)
+                )
+                (flagElim [] (pure . unwords . fmap show))
+            )
         ]
     }
 

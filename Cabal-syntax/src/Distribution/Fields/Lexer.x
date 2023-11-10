@@ -19,18 +19,6 @@ module Distribution.Fields.Lexer
   ,bol_section, in_section, in_field_layout, in_field_braces
   ,mkLexState) where
 
--- [Note: bootstrapping parsec parser]
---
--- We manually produce the `Lexer.hs` file from `boot/Lexer.x` (make lexer)
--- because bootstrapping cabal-install would be otherwise tricky.
--- Alex is (atm) tricky package to build, cabal-install has some magic
--- to move bundled generated files in place, so rather we don't depend
--- on it before we can build it ourselves.
--- Therefore there is one thing less to worry in bootstrap.sh, which is a win.
---
--- See also https://github.com/haskell/cabal/issues/4633
---
-
 import Prelude ()
 import qualified Prelude as Prelude
 import Distribution.Compat.Prelude
@@ -52,6 +40,8 @@ import qualified Data.Text.Encoding.Error as T
 
 }
 -- Various character classes
+
+%encoding "latin1"
 
 $space           = \          -- single space char
 $ctlchar         = [\x0-\x1f \x7f]
@@ -85,6 +75,7 @@ tokens :-
 <0> {
   @bom?  { \pos len _ -> do
               when (len /= 0) $ addWarningAt pos LexWarningBOM
+              setPos pos -- reset position as if BOM didn't exist
               setStartCode bol_section
               lexToken
          }
@@ -98,11 +89,17 @@ tokens :-
 }
 
 <bol_section> {
-  @nbspspacetab*   { \pos len inp -> checkLeadingWhitespace pos len inp >>
+  @nbspspacetab*   { \pos len inp -> checkLeadingWhitespace pos len inp >>= \len' ->
+                                     -- len' is character whitespace length (counting nbsp as one)
                                      if B.length inp == len
                                        then return (L pos EOF)
-                                       else setStartCode in_section
-                                         >> return (L pos (Indent len)) }
+                                       else do
+                                        -- Small hack: if char and byte length mismatch
+                                        -- subtract the difference, so lexToken will count position correctly.
+                                        -- Proper (and slower) fix is to count utf8 length in lexToken
+                                        when (len' /= len) $ adjustPos (incPos (len' - len))
+                                        setStartCode in_section
+                                        return (L pos (Indent len')) }
   $spacetab* \{    { tok  OpenBrace }
   $spacetab* \}    { tok  CloseBrace }
 }
@@ -126,8 +123,13 @@ tokens :-
   @nbspspacetab* { \pos len inp -> checkLeadingWhitespace pos len inp >>= \len' ->
                                   if B.length inp == len
                                     then return (L pos EOF)
-                                    else setStartCode in_field_layout
-                                      >> return (L pos (Indent len')) }
+                                    else do
+                                      -- Small hack: if char and byte length mismatch
+                                      -- subtract the difference, so lexToken will count position correctly.
+                                      -- Proper (and slower) fix is to count utf8 length in lexToken
+                                      when (len' /= len) $ adjustPos (incPos (len' - len))
+                                      setStartCode in_field_layout
+                                      return (L pos (Indent len')) }
 }
 
 <in_field_layout> {
@@ -181,6 +183,9 @@ checkLeadingWhitespace pos len bs
 
 checkWhitespace :: Position -> Int -> ByteString -> Lex Int
 checkWhitespace pos len bs
+    -- UTF8 NBSP is 194 160. This function is called on whitespace bytestrings,
+    -- therefore counting 194 bytes is enough to count non-breaking spaces.
+    -- We subtract the amount of 194 bytes to convert bytes length into char length
     | B.any (== 194) (B.take len bs) = do
         addWarningAt pos LexWarningNBSP
         return $ len - B.count 194 (B.take len bs)

@@ -47,6 +47,7 @@ import Prelude ()
 import Distribution.Client.PackageHash (renderPackageHashInputs)
 import Distribution.Client.ProjectBuilding.Types
 import Distribution.Client.ProjectConfig
+import Distribution.Client.ProjectConfig.Types
 import Distribution.Client.ProjectPlanning
 import Distribution.Client.ProjectPlanning.Types
 import Distribution.Client.RebuildMonad
@@ -82,6 +83,7 @@ import Distribution.Client.Types hiding
 import Distribution.Client.Utils
   ( ProgressPhase (..)
   , findOpenProgramLocation
+  , numberOfProcessors
   , progressMessage
   , removeExistingFile
   )
@@ -97,6 +99,7 @@ import Distribution.Simple.Compiler
   ( Compiler
   , PackageDB (..)
   , compilerId
+  , jsemSupported
   )
 import qualified Distribution.Simple.InstallDirs as InstallDirs
 import Distribution.Simple.LocalBuildInfo
@@ -122,11 +125,13 @@ import qualified Data.Set as Set
 
 import qualified Text.PrettyPrint as Disp
 
-import Control.Exception (Handler (..), SomeAsyncException, assert, catches, handle)
+import Control.Exception (Handler (..), SomeAsyncException, assert, bracket, catches, handle)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removeFile, renameDirectory)
 import System.FilePath (dropDrive, makeRelative, normalise, takeDirectory, (<.>), (</>))
 import System.IO (Handle, IOMode (AppendMode), withFile)
+import System.Semaphore (SemaphoreName (..))
 
+import Distribution.Client.Errors
 import Distribution.Compat.Directory (listDirectory)
 import Distribution.Simple.Flag (fromFlagOrDefault)
 
@@ -652,57 +657,64 @@ rebuildTargets
     | otherwise = do
         -- Concurrency control: create the job controller and concurrency limits
         -- for downloading, building and installing.
-        jobControl <-
-          if isParallelBuild
-            then newParallelJobControl buildSettingNumJobs
-            else newSerialJobControl
+        mkJobControl <- case buildSettingNumJobs of
+          Serial -> newSerialJobControl
+          NumJobs n -> newParallelJobControl (fromMaybe numberOfProcessors n)
+          UseSem n ->
+            if jsemSupported compiler
+              then newSemaphoreJobControl n
+              else do
+                warn verbosity "-jsem is not supported by the selected compiler, falling back to normal parallelism control."
+                newParallelJobControl n
         registerLock <- newLock -- serialise registration
         cacheLock <- newLock -- serialise access to setup exe cache
         -- TODO: [code cleanup] eliminate setup exe cache
-        debug verbosity $
+        info verbosity $
           "Executing install plan "
-            ++ if isParallelBuild
-              then " in parallel using " ++ show buildSettingNumJobs ++ " threads."
-              else " serially."
+            ++ case buildSettingNumJobs of
+              NumJobs n -> " in parallel using " ++ show n ++ " threads."
+              UseSem n -> " in parallel using a semaphore with " ++ show n ++ " slots."
+              Serial -> " serially."
 
         createDirectoryIfMissingVerbose verbosity True distBuildRootDirectory
         createDirectoryIfMissingVerbose verbosity True distTempDirectory
         traverse_ (createPackageDBIfMissing verbosity compiler progdb) packageDBsToUse
 
-        -- Before traversing the install plan, preemptively find all packages that
-        -- will need to be downloaded and start downloading them.
-        asyncDownloadPackages
-          verbosity
-          withRepoCtx
-          installPlan
-          pkgsBuildStatus
-          $ \downloadMap ->
-            -- For each package in the plan, in dependency order, but in parallel...
-            InstallPlan.execute
-              jobControl
-              keepGoing
-              (BuildFailure Nothing . DependentFailed . packageId)
-              installPlan
-              $ \pkg ->
-                -- TODO: review exception handling
-                handle (\(e :: BuildFailure) -> return (Left e)) $ fmap Right $ do
-                  let uid = installedUnitId pkg
-                      pkgBuildStatus = Map.findWithDefault (error "rebuildTargets") uid pkgsBuildStatus
+        bracket (pure mkJobControl) cleanupJobControl $ \jobControl -> do
+          -- Before traversing the install plan, preemptively find all packages that
+          -- will need to be downloaded and start downloading them.
+          asyncDownloadPackages
+            verbosity
+            withRepoCtx
+            installPlan
+            pkgsBuildStatus
+            $ \downloadMap ->
+              -- For each package in the plan, in dependency order, but in parallel...
+              InstallPlan.execute
+                mkJobControl
+                keepGoing
+                (BuildFailure Nothing . DependentFailed . packageId)
+                installPlan
+                $ \pkg ->
+                  -- TODO: review exception handling
+                  handle (\(e :: BuildFailure) -> return (Left e)) $ fmap Right $ do
+                    let uid = installedUnitId pkg
+                        pkgBuildStatus = Map.findWithDefault (error "rebuildTargets") uid pkgsBuildStatus
 
-                  rebuildTarget
-                    verbosity
-                    distDirLayout
-                    storeDirLayout
-                    buildSettings
-                    downloadMap
-                    registerLock
-                    cacheLock
-                    sharedPackageConfig
-                    installPlan
-                    pkg
-                    pkgBuildStatus
+                    rebuildTarget
+                      verbosity
+                      distDirLayout
+                      storeDirLayout
+                      (jobControlSemaphore jobControl)
+                      buildSettings
+                      downloadMap
+                      registerLock
+                      cacheLock
+                      sharedPackageConfig
+                      installPlan
+                      pkg
+                      pkgBuildStatus
     where
-      isParallelBuild = buildSettingNumJobs >= 2
       keepGoing = buildSettingKeepGoing
       withRepoCtx =
         projectConfigWithBuilderRepoContext
@@ -780,6 +792,7 @@ rebuildTarget
   :: Verbosity
   -> DistDirLayout
   -> StoreDirLayout
+  -> Maybe SemaphoreName
   -> BuildTimeSettings
   -> AsyncFetchMap
   -> Lock
@@ -793,6 +806,7 @@ rebuildTarget
   verbosity
   distDirLayout@DistDirLayout{distBuildDirectory}
   storeDirLayout
+  semaphoreName
   buildSettings
   downloadMap
   registerLock
@@ -876,6 +890,7 @@ rebuildTarget
           verbosity
           distDirLayout
           storeDirLayout
+          semaphoreName
           buildSettings
           registerLock
           cacheLock
@@ -894,6 +909,7 @@ rebuildTarget
         buildInplaceUnpackedPackage
           verbosity
           distDirLayout
+          semaphoreName
           buildSettings
           registerLock
           cacheLock
@@ -1064,8 +1080,8 @@ unpackPackageTarball verbosity tarball parentdir pkgid pkgTextOverride =
     --
     exists <- doesFileExist cabalFile
     unless exists $
-      die' verbosity $
-        "Package .cabal file not found in the tarball: " ++ cabalFile
+      dieWithException verbosity $
+        CabalFileNotFound cabalFile
 
     -- Overwrite the .cabal with the one from the index, when appropriate
     --
@@ -1124,6 +1140,10 @@ buildAndInstallUnpackedPackage
   :: Verbosity
   -> DistDirLayout
   -> StoreDirLayout
+  -> Maybe SemaphoreName
+  -- ^ Whether to pass a semaphore to build process
+  -- this is different to BuildTimeSettings because the
+  -- name of the semaphore is created freshly each time.
   -> BuildTimeSettings
   -> Lock
   -> Lock
@@ -1139,6 +1159,7 @@ buildAndInstallUnpackedPackage
   storeDirLayout@StoreDirLayout
     { storePackageDBStack
     }
+  maybe_semaphore
   BuildTimeSettings
     { buildSettingNumJobs
     , buildSettingLogFile
@@ -1324,10 +1345,8 @@ buildAndInstallUnpackedPackage
 
       noticeProgress :: ProgressPhase -> IO ()
       noticeProgress phase =
-        when isParallelBuild $
+        when (isParallelBuild buildSettingNumJobs) $
           progressMessage verbosity phase dispname
-
-      isParallelBuild = buildSettingNumJobs >= 2
 
       whenHaddock action
         | hasValidHaddockTargets pkg = action
@@ -1344,7 +1363,10 @@ buildAndInstallUnpackedPackage
       configureArgs _ = setupHsConfigureArgs pkg
 
       buildCommand = Cabal.buildCommand defaultProgramDb
-      buildFlags _ = setupHsBuildFlags pkg pkgshared verbosity builddir
+      comp_par_strat = case maybe_semaphore of
+        Just sem_name -> Cabal.Flag (getSemaphoreName sem_name)
+        _ -> Cabal.NoFlag
+      buildFlags _ = setupHsBuildFlags comp_par_strat pkg pkgshared verbosity builddir
 
       haddockCommand = Cabal.haddockCommand
       haddockFlags _ =
@@ -1385,7 +1407,7 @@ buildAndInstallUnpackedPackage
           distDirLayout
           srcdir
           builddir
-          isParallelBuild
+          (isParallelBuild buildSettingNumJobs)
           cacheLock
 
       setup :: CommandUI flags -> (Version -> flags) -> IO ()
@@ -1461,6 +1483,7 @@ hasValidHaddockTargets ElaboratedConfiguredPackage{..}
 buildInplaceUnpackedPackage
   :: Verbosity
   -> DistDirLayout
+  -> Maybe SemaphoreName
   -> BuildTimeSettings
   -> Lock
   -> Lock
@@ -1479,6 +1502,7 @@ buildInplaceUnpackedPackage
     , distDirectory
     , distHaddockOutputDir
     }
+  maybe_semaphore
   BuildTimeSettings{buildSettingNumJobs, buildSettingHaddockOpen}
   registerLock
   cacheLock
@@ -1629,7 +1653,7 @@ buildInplaceUnpackedPackage
           exe <- findOpenProgramLocation platform
           case exe of
             Right open -> runProgramInvocation verbosity (simpleProgramInvocation open [dest])
-            Left err -> die' verbosity err
+            Left err -> dieWithException verbosity $ FindOpenProgramLocationErr err
 
     return
       BuildResult
@@ -1641,7 +1665,9 @@ buildInplaceUnpackedPackage
       ipkgid = installedUnitId pkg
       dparams = elabDistDirParams pkgshared pkg
 
-      isParallelBuild = buildSettingNumJobs >= 2
+      comp_par_strat = case maybe_semaphore of
+        Just sem_name -> Cabal.toFlag (getSemaphoreName sem_name)
+        _ -> Cabal.NoFlag
 
       packageFileMonitor = newPackageFileMonitor pkgshared distDirLayout dparams
 
@@ -1697,6 +1723,7 @@ buildInplaceUnpackedPackage
       buildCommand = Cabal.buildCommand defaultProgramDb
       buildFlags _ =
         setupHsBuildFlags
+          comp_par_strat
           pkg
           pkgshared
           verbosity
@@ -1751,7 +1778,7 @@ buildInplaceUnpackedPackage
           distDirLayout
           srcdir
           builddir
-          isParallelBuild
+          (isParallelBuild buildSettingNumJobs)
           cacheLock
 
       setupInteractive
@@ -1814,9 +1841,7 @@ withTempInstalledPackageInfoFile verbosity tempdir action =
   where
     pkgConfParseFailed :: String -> IO a
     pkgConfParseFailed perror =
-      die' verbosity $
-        "Couldn't parse the output of 'setup register --gen-pkg-config':"
-          ++ show perror
+      dieWithException verbosity $ PkgConfParseFailed perror
 
     readPkgConf :: FilePath -> FilePath -> IO InstalledPackageInfo
     readPkgConf pkgConfDir pkgConfFile = do

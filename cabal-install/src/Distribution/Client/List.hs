@@ -51,7 +51,7 @@ import qualified Distribution.Simple.PackageIndex as InstalledPackageIndex
 import Distribution.Simple.Program (ProgramDb)
 import Distribution.Simple.Setup (fromFlag, fromFlagOrDefault)
 import Distribution.Simple.Utils
-  ( die'
+  ( dieWithException
   , equating
   , notice
   )
@@ -132,6 +132,7 @@ import Text.PrettyPrint
   )
 import qualified Text.PrettyPrint as Disp
 
+import Distribution.Client.Errors
 import Distribution.Utils.ShortText (ShortText)
 import qualified Distribution.Utils.ShortText as ShortText
 import qualified Text.Regex.Base as Regex
@@ -155,7 +156,7 @@ getPkgList verbosity packageDBs repoCtxt mcompprogdb listFlags pats = do
     e <- Regex.compile compOption Regex.execBlank pat
     case e of
       Right r -> return r
-      Left err -> die' verbosity $ "Failed to compile regex " ++ pat ++ ": " ++ snd err
+      Left err -> dieWithException verbosity $ GetPkgList pat err
 
   let sourcePkgIndex = packageIndex sourcePkgDb
       prefs name =
@@ -297,7 +298,7 @@ info
       sequenceA
         [ do
           pkginfo <-
-            either (die' verbosity) return $
+            either (dieWithException verbosity) return $
               gatherPkgInfo
                 prefs
                 installedPkgIndex
@@ -314,18 +315,14 @@ info
         -> InstalledPackageIndex
         -> PackageIndex.PackageIndex UnresolvedSourcePackage
         -> PackageSpecifier UnresolvedSourcePackage
-        -> Either String PackageDisplayInfo
+        -> Either CabalInstallException PackageDisplayInfo
       gatherPkgInfo
         prefs
         installedPkgIndex
         sourcePkgIndex
         (NamedPackage name props)
           | null (selectedInstalledPkgs) && null (selectedSourcePkgs) =
-              Left $
-                "There is no available version of "
-                  ++ prettyShow name
-                  ++ " that satisfies "
-                  ++ prettyShow (simplifyVersionRange verConstraint)
+              Left $ GatherPkgInfo name (simplifyVersionRange verConstraint)
           | otherwise =
               Right $
                 mergePackageInfo
@@ -431,27 +428,28 @@ showPackageSummaryInfo pkginfo =
   renderStyle (style{lineLength = 80, ribbonsPerLine = 1}) $
     char '*'
       <+> pretty (pkgName pkginfo)
-      $+$ ( nest 4 $
-              vcat
-                [ maybeShowST (synopsis pkginfo) "Synopsis:" reflowParagraphs
-                , text "Default available version:"
-                    <+> case selectedSourcePkg pkginfo of
-                      Nothing -> text "[ Not available from any configured repository ]"
-                      Just pkg -> pretty (packageVersion pkg)
-                , text "Installed versions:"
-                    <+> case installedVersions pkginfo of
-                      []
-                        | hasLib pkginfo -> text "[ Not installed ]"
-                        | otherwise -> text "[ Unknown ]"
-                      versions ->
-                        dispTopVersions
-                          4
-                          (preferredVersions pkginfo)
-                          versions
-                , maybeShowST (homepage pkginfo) "Homepage:" text
-                , text "License: " <+> either pretty pretty (license pkginfo)
-                ]
-          )
+      $+$ nest
+        4
+        ( vcat
+            [ maybeShowST (synopsis pkginfo) "Synopsis:" reflowParagraphs
+            , text "Default available version:"
+                <+> case selectedSourcePkg pkginfo of
+                  Nothing -> text "[ Not available from any configured repository ]"
+                  Just pkg -> pretty (packageVersion pkg)
+            , text "Installed versions:"
+                <+> case installedVersions pkginfo of
+                  []
+                    | hasLib pkginfo -> text "[ Not installed ]"
+                    | otherwise -> text "[ Unknown ]"
+                  versions ->
+                    dispTopVersions
+                      4
+                      (preferredVersions pkginfo)
+                      versions
+            , maybeShowST (homepage pkginfo) "Homepage:" text
+            , text "License: " <+> either pretty pretty (license pkginfo)
+            ]
+        )
       $+$ text ""
   where
     maybeShowST l s f
@@ -466,43 +464,44 @@ showPackageDetailedInfo pkginfo =
         <<>> maybe Disp.empty (\v -> char '-' Disp.<> pretty v) (selectedVersion pkginfo)
       <+> text (replicate (16 - length (prettyShow (pkgName pkginfo))) ' ')
         <<>> parens pkgkind
-      $+$ ( nest 4 $
-              vcat
-                [ entryST "Synopsis" synopsis hideIfNull reflowParagraphs
-                , entry
-                    "Versions available"
-                    sourceVersions
-                    (altText null "[ Not available from server ]")
-                    (dispTopVersions 9 (preferredVersions pkginfo))
-                , entry
-                    "Versions installed"
-                    installedVersions
-                    ( altText
-                        null
-                        ( if hasLib pkginfo
-                            then "[ Not installed ]"
-                            else "[ Unknown ]"
-                        )
+      $+$ nest
+        4
+        ( vcat
+            [ entryST "Synopsis" synopsis hideIfNull reflowParagraphs
+            , entry
+                "Versions available"
+                sourceVersions
+                (altText null "[ Not available from server ]")
+                (dispTopVersions 9 (preferredVersions pkginfo))
+            , entry
+                "Versions installed"
+                installedVersions
+                ( altText
+                    null
+                    ( if hasLib pkginfo
+                        then "[ Not installed ]"
+                        else "[ Unknown ]"
                     )
-                    (dispTopVersions 4 (preferredVersions pkginfo))
-                , entryST "Homepage" homepage orNotSpecified text
-                , entryST "Bug reports" bugReports orNotSpecified text
-                , entryST "Description" description hideIfNull reflowParagraphs
-                , entryST "Category" category hideIfNull text
-                , entry "License" license alwaysShow (either pretty pretty)
-                , entryST "Author" author hideIfNull reflowLines
-                , entryST "Maintainer" maintainer hideIfNull reflowLines
-                , entry "Source repo" sourceRepo orNotSpecified text
-                , entry "Executables" executables hideIfNull (commaSep pretty)
-                , entry "Flags" flags hideIfNull (commaSep dispFlag)
-                , entry "Dependencies" dependencies hideIfNull (commaSep dispExtDep)
-                , entry "Documentation" haddockHtml showIfInstalled text
-                , entry "Cached" haveTarball alwaysShow dispYesNo
-                , if not (hasLib pkginfo)
-                    then mempty
-                    else text "Modules:" $+$ nest 4 (vcat (map pretty . sort . modules $ pkginfo))
-                ]
-          )
+                )
+                (dispTopVersions 4 (preferredVersions pkginfo))
+            , entryST "Homepage" homepage orNotSpecified text
+            , entryST "Bug reports" bugReports orNotSpecified text
+            , entryST "Description" description hideIfNull reflowParagraphs
+            , entryST "Category" category hideIfNull text
+            , entry "License" license alwaysShow (either pretty pretty)
+            , entryST "Author" author hideIfNull reflowLines
+            , entryST "Maintainer" maintainer hideIfNull reflowLines
+            , entry "Source repo" sourceRepo orNotSpecified text
+            , entry "Executables" executables hideIfNull (commaSep pretty)
+            , entry "Flags" flags hideIfNull (commaSep dispFlag)
+            , entry "Dependencies" dependencies hideIfNull (commaSep dispExtDep)
+            , entry "Documentation" haddockHtml showIfInstalled text
+            , entry "Cached" haveTarball alwaysShow dispYesNo
+            , if not (hasLib pkginfo)
+                then mempty
+                else text "Modules:" $+$ nest 4 (vcat (map pretty . sort . modules $ pkginfo))
+            ]
+        )
       $+$ text ""
   where
     entry fname field cond format = case cond (field pkginfo) of

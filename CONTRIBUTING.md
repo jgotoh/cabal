@@ -3,19 +3,24 @@
 Building Cabal for hacking
 --------------------------
 
-The current recommended way of developing Cabal is to use the
-`v2-build` feature which [shipped in cabal-install-1.24](http://blog.ezyang.com/2016/05/announcing-cabal-new-build-nix-style-local-builds/).
 If you use the latest version of cabal published on Hackage, it is sufficient to run:
 
 ```
-cabal v2-build cabal
+cabal build cabal
 ```
 
 If not, you aren't able to build the testsuite, so you need to disable the default `cabal.project` that implies configuring the testsuite, e.g., with:
 
 ```
-cabal v2-build --project-file=cabal.project.release cabal
+cabal build --project-file=cabal.project.release cabal
 ```
+
+> **Note**
+> If you're using Nix, you might find it convenient to work within a shell that has all the `Cabal` development dependencies:
+> ```
+> $ nix-shell -p cabal-install ghc ghcid haskellPackages.fourmolu_0_12_0_0 pkgconfig zlib.dev
+> ```
+> A Nix flake developer shell with these dependencies is also available, supported solely by the community, through the command `nix develop github:yvan-sraka/cabal.nix`.
 
 The location of your build products will vary depending on which version of
 cabal-install you use to build; see the documentation section
@@ -25,9 +30,9 @@ to find the binary (or just run `find -type f -executable -name cabal`).
 Here are some other useful variations on the commands:
 
 ```
-cabal v2-build Cabal # build library only
-cabal v2-build Cabal-tests:unit-tests # build Cabal's unit test suite
-cabal v2-build cabal-tests # etc...
+cabal build Cabal # build library only
+cabal build Cabal-tests:unit-tests # build Cabal's unit test suite
+cabal build cabal-tests # etc...
 ```
 
 Running tests
@@ -80,7 +85,7 @@ If none of these let you reproduce, there might be some race condition
 or continuous integration breakage; please file a bug.
 
 **Running tests locally.**
-To run tests locally with `v2-build`, you will need to know the
+To run tests locally with `cabal`, you will need to know the
 name of the test suite you want.  Cabal and cabal-install have
 several.  Also, you'll want to read [Where are my build products?](http://cabal.readthedocs.io/en/latest/nix-local-build.html#where-are-my-build-products)
 
@@ -125,11 +130,13 @@ are tested before being released. This allows us to catch UX regressions and put
 a human perspective into testing.
 
 Contributions that touch `cabal-install` are expected to include notes for the QA team.
-They are a description of an expected result upon calling `cabal-install` with certain parameters.
+They are a description of an expected result upon calling `cabal-install` with certain parameters,
+and should be written in the body of the ticket or PR under their own heading, like this:
 
 For instance:
 
-> ## QA Notes
+> \#\# QA Notes
+> 
 > Calling `cabal haddock-project` should produce documentation for the whole cabal project with the following defaults enabled:
 > * Documentation lives in ./haddocks
 > * The file `./haddocks/index.html` should exist
@@ -142,7 +149,8 @@ Code Style
 ---------------
 
 We use automated formatting with Fourmolu to enforce a unified style across the code bases. It is checked in the CI process.
-You can automatically format the code bases with `make style` at the top level of the project.
+After installing Fourmolu 0.12, you can automatically format the code bases with `make style` at the top level of the project.
+You can also use `make style-modified` to only format modified files.
 
 Other Conventions
 -----------------
@@ -242,13 +250,16 @@ and concatenate the commit messages of the commits before merging.
 Changelog
 ---------
 
-When opening a pull request, you should write a changelog entry
-(or more in case of multiple independent changes).
-This is done by adding files in the `changelog.d` directory.
+When opening a pull request with a user-visible change, you should write one changelog entry
+(or more in case of multiple independent changes) — the information will end up in
+our release notes.
 
-The files follow a simple key-value format similar to the one for .cabal files.
+Changelogs for the next release are stored in the `changelog.d` directory.
+The files follow a simple key-value format similar to the one for `.cabal` files.
+Free-form text fields (`synopsis` and `description`) allow Markdown markup — please,
+use markup to make our release notes more readable.
 
-Here's an exhaustive example:
+Here's an example:
 
 ```cabal
 synopsis: Add feature xyz
@@ -282,7 +293,7 @@ You can find a large number of real-world examples of changelog files
 At release time, the entries will be merged with
 [this tool](https://github.com/fgaz/changelog-d).
 
-In addition, if you're changing the .cabal file format specification you should
+In addition, if you're changing the `.cabal` file format specification you should
 add an entry in `doc/file-format-changelog.rst`.
 
 Communicating

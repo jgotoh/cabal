@@ -31,7 +31,7 @@ module Distribution.Fields.LexerMonad
 import qualified Data.ByteString as B
 import qualified Data.List.NonEmpty as NE
 import Distribution.Compat.Prelude
-import Distribution.Parsec.Position (Position (..), showPos)
+import Distribution.Parsec.Position (Position (..), positionRow, showPos)
 import Distribution.Parsec.Warning (PWarnType (..), PWarning (..))
 import Prelude ()
 
@@ -67,6 +67,10 @@ data LexWarningType
     LexWarningBOM
   | -- | Leading tags
     LexWarningTab
+  | -- | indentation decreases
+    LexInconsistentIndentation
+  | -- | Brace syntax used
+    LexBraces
   deriving (Eq, Ord, Show)
 
 data LexWarning
@@ -77,17 +81,22 @@ data LexWarning
 
 toPWarnings :: [LexWarning] -> [PWarning]
 toPWarnings =
-  map (uncurry toWarning)
+  mapMaybe (uncurry toWarning)
     . Map.toList
-    . Map.fromListWith (<>)
+    . Map.fromListWith (flip (<>)) -- fromListWith gives existing element first.
     . map (\(LexWarning t p) -> (t, pure p))
   where
     toWarning LexWarningBOM poss =
-      PWarning PWTLexBOM (NE.head poss) "Byte-order mark found at the beginning of the file"
+      Just $ PWarning PWTLexBOM (NE.head poss) "Byte-order mark found at the beginning of the file"
     toWarning LexWarningNBSP poss =
-      PWarning PWTLexNBSP (NE.head poss) $ "Non breaking spaces at " ++ intercalate ", " (NE.toList $ fmap showPos poss)
+      Just $ PWarning PWTLexNBSP (NE.head poss) $ "Non breaking spaces at " ++ intercalate ", " (NE.toList $ fmap showPos poss)
     toWarning LexWarningTab poss =
-      PWarning PWTLexTab (NE.head poss) $ "Tabs used as indentation at " ++ intercalate ", " (NE.toList $ fmap showPos poss)
+      Just $ PWarning PWTLexTab (NE.head poss) $ "Tabs used as indentation at " ++ intercalate ", " (NE.toList $ fmap showPos poss)
+    toWarning LexInconsistentIndentation poss =
+      Just $ PWarning PWTInconsistentIndentation (NE.head poss) $ "Inconsistent indentation. Indentation jumps at lines " ++ intercalate ", " (NE.toList $ fmap (show . positionRow) poss)
+    -- LexBraces warning about using { } delimeters is not reported as parser warning.
+    toWarning LexBraces _ =
+      Nothing
 
 {- FOURMOLU_DISABLE -}
 data LexState = LexState

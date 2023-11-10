@@ -79,6 +79,7 @@ import System.FilePath
   , (</>)
   )
 
+import qualified Control.Monad as CM
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Map as Map
 import qualified Distribution.Compat.DList as DList
@@ -308,7 +309,7 @@ ppExplanation SignaturesCabal2 =
   "To use the 'signatures' field the package needs to specify "
     ++ "at least 'cabal-version: 2.0'."
 ppExplanation AutogenNotExposed =
-  "An 'autogen-module' is neither on 'exposed-modules' or 'other-modules'."
+  "An 'autogen-module' is neither on 'exposed-modules' nor 'other-modules'."
 ppExplanation AutogenIncludesNotIncluded =
   "An include in 'autogen-includes' is neither in 'includes' or "
     ++ "'install-includes'."
@@ -1351,18 +1352,13 @@ checkFields pkg =
       , isNoVersion vr
       ]
 
-    internalLibraries =
-      map
-        (maybe (packageName pkg) unqualComponentNameToPackageName . libraryNameString . libName)
-        (allLibraries pkg)
-
     internalExecutables = map exeName $ executables pkg
 
     internalLibDeps =
       [ dep
       | bi <- allBuildInfo pkg
       , dep@(Dependency name _ _) <- targetBuildDepends bi
-      , name `elem` internalLibraries
+      , name == packageName pkg
       ]
 
     internalExeDeps =
@@ -2109,7 +2105,7 @@ checkPackageVersions pkg =
     else baseErrors
   where
     baseErrors = PackageDistInexcusable BaseNoUpperBounds <$ bases
-    deps = toDependencyVersionsMap allBuildDepends pkg
+    deps = toDependencyVersionsMap allNonInternalBuildDepends pkg
     -- base gets special treatment (it's more critical)
     (bases, others) =
       partition (("base" ==) . unPackageName) $
@@ -2117,6 +2113,16 @@ checkPackageVersions pkg =
         | (name, vr) <- Map.toList deps
         , not (hasUpperBound vr)
         ]
+
+    -- Get the combined build-depends entries of all components.
+    allNonInternalBuildDepends :: PackageDescription -> [Dependency]
+    allNonInternalBuildDepends = targetBuildDepends CM.<=< allNonInternalBuildInfo
+
+    allNonInternalBuildInfo :: PackageDescription -> [BuildInfo]
+    allNonInternalBuildInfo pkg_descr =
+      [bi | lib <- allLibraries pkg_descr, let bi = libBuildInfo lib]
+        ++ [bi | flib <- foreignLibs pkg_descr, let bi = foreignLibBuildInfo flib]
+        ++ [bi | exe <- executables pkg_descr, let bi = buildInfo exe]
 
 checkConditionals :: GenericPackageDescription -> [PackageCheck]
 checkConditionals pkg =

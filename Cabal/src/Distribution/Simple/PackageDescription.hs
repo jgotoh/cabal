@@ -22,6 +22,8 @@ module Distribution.Simple.PackageDescription
 import Distribution.Compat.Prelude
 import Prelude ()
 
+import qualified Data.ByteString as BS
+import Data.List (groupBy)
 import Distribution.Fields.ParseResult
 import Distribution.PackageDescription
 import Distribution.PackageDescription.Parsec
@@ -34,11 +36,9 @@ import Distribution.Parsec.Warning
   , PWarning (..)
   , showPWarning
   )
-import Distribution.Simple.Utils (die', equating, warn)
+import Distribution.Simple.Errors
+import Distribution.Simple.Utils (dieWithException, equating, warn)
 import Distribution.Verbosity (Verbosity, normal)
-
-import qualified Data.ByteString as BS
-import Data.List (groupBy)
 import System.Directory (doesFileExist)
 import Text.Printf (printf)
 
@@ -65,8 +65,8 @@ readAndParseFile
 readAndParseFile parser verbosity fpath = do
   exists <- doesFileExist fpath
   unless exists $
-    die' verbosity $
-      "Error Parsing: file \"" ++ fpath ++ "\" doesn't exist. Cannot continue."
+    dieWithException verbosity $
+      ErrorParsingFileDoesntExist fpath
   bs <- BS.readFile fpath
   parseString parser verbosity fpath bs
 
@@ -86,7 +86,7 @@ parseString parser verbosity name bs = do
     Right x -> return x
     Left (_, errors) -> do
       traverse_ (warn verbosity . showPError name) errors
-      die' verbosity $ "Failed parsing \"" ++ name ++ "\"."
+      dieWithException verbosity $ FailedParsing name
 
 -- | Collapse duplicate experimental feature warnings into single warning, with
 -- a count of further sites

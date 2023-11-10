@@ -4,7 +4,7 @@
 [![Stackage version](https://www.stackage.org/package/Cabal/badge/lts?label=Stackage)](https://www.stackage.org/package/Cabal)
 [![Documentation Status](http://readthedocs.org/projects/cabal/badge/?version=latest)](http://cabal.readthedocs.io/en/latest/?badge=latest)
 [![IRC chat](https://img.shields.io/badge/chat-via%20libera-brightgreen.svg)](https://web.libera.chat/#hackage)
-[![Matrix chat](https://img.shields.io/badge/chat-via%20matrix-brightgreen.svg)](https://matrix.to/#/#hackage:libera.chat)
+[![Matrix chat](https://img.shields.io/badge/chat-via%20matrix-brightgreen.svg)](https://matrix.to/#/#hackage:matrix.org)
 
 <img src="https://www.haskell.org/cabal/images/Cabal-light.png" align="right">
 
@@ -33,7 +33,14 @@ Ways to get the `cabal-install` binary
 _Getting unreleased versions of `cabal-install`_: gives you a chance to try out yet-unreleased features.
 Currently, we only provide binaries for `x86_64` platforms.
 
-1. _[GitHub preview release built from the tip of the `master` branch](https://github.com/haskell/cabal/releases/tag/cabal-head)_:
+1. _GitHub preview release built from the tip of the `master` branch_: [download from GitHub](https://github.com/haskell/cabal/releases/tag/cabal-head) or use this GHCup command to install:
+
+    ```
+    ghcup install cabal -u https://github.com/haskell/cabal/releases/download/cabal-head/cabal-head-Linux-x86_64.tar.gz head
+    ```
+
+    Replace "Linux" with "Windows" or "macOS" as appropriate.
+
 
 2. Even more cutting-edge binaries built from pull requests are always available
    from the `Validate` worklow page on GitHub, at the very bottom of the page.
@@ -62,6 +69,16 @@ Ways to build `cabal-install` for everyday use
 3. _Bootstrapping_:
     if you don't have a pre-existing version of `cabal-install`,
     look into the [`bootstrap`](bootstrap) directory.
+
+Learn how to use `cabal` and get support
+----------------------------------------
+
+`cabal` comes with a thorough [User Manual](https://cabal.readthedocs.io).
+If you are new to `cabal` and want to quickly learn the basics, check
+[Getting Started With Haskell and Cabal](https://cabal.readthedocs.io/en/latest/getting-started.html).
+
+Got questions? Ask in [Haskell Matrix](https://matrix.to/#/#haskell:matrix.org)
+(online chat) or [Haskell Discourse](https://discourse.haskell.org).
 
 Build for hacking and contributing to cabal
 -------------------------------------------

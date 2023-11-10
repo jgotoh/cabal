@@ -29,6 +29,7 @@ module Distribution.Simple.Setup.Common
   , splitArgs
   , testOrBenchmarkHelpText
   , defaultDistPref
+  , extraCompilationArtifacts
   , optionDistPref
   , Flag (..)
   , toFlag
@@ -62,6 +63,11 @@ import Distribution.Verbosity
 -- FIXME Not sure where this should live
 defaultDistPref :: FilePath
 defaultDistPref = "dist"
+
+-- | The name of the directory where optional compilation artifacts
+-- go, such as ghc plugins and .hie files.
+extraCompilationArtifacts :: FilePath
+extraCompilationArtifacts = "extra-compilation-artifacts"
 
 -- | Help text for @test@ and @bench@ commands.
 testOrBenchmarkHelpText
@@ -276,7 +282,7 @@ optionVerbosity get set =
     ( optArg
         "n"
         (fmap Flag flagToVerbosity)
-        (Flag verbose) -- default Value if no n is given
+        (show verbose, Flag verbose) -- default Value if no n is given
         (fmap (Just . showForCabal) . flagToList)
     )
 
@@ -294,7 +300,7 @@ optionNumJobs get set =
     ( optArg
         "NUM"
         (fmap Flag numJobsParser)
-        (Flag Nothing)
+        ("$ncpus", Flag Nothing)
         (map (Just . maybe "$ncpus" show) . flagToList)
     )
   where

@@ -95,7 +95,7 @@ import Distribution.Simple.Program
   )
 import Distribution.Simple.Utils
   ( createDirectoryIfMissingVerbose
-  , die'
+  , dieWithException
   , fromUTF8LBS
   , info
   , warn
@@ -120,6 +120,7 @@ import Distribution.Solver.Types.PackageIndex (PackageIndex)
 import qualified Distribution.Solver.Types.PackageIndex as PackageIndex
 import Distribution.Solver.Types.SourcePackage
 
+import qualified Codec.Compression.GZip as GZip
 import Control.Exception
 import qualified Data.ByteString.Char8 as BSS
 import Data.ByteString.Lazy (ByteString)
@@ -142,7 +143,6 @@ import Distribution.Utils.Structured (Structured (..), nominalStructure, structu
 import System.Directory (doesDirectoryExist, doesFileExist)
 import System.FilePath
   ( normalise
-  , replaceExtension
   , splitDirectories
   , takeDirectory
   , takeExtension
@@ -155,8 +155,7 @@ import System.IO
 import System.IO.Error (isDoesNotExistError)
 import System.IO.Unsafe (unsafeInterleaveIO)
 
-import qualified Codec.Compression.GZip as GZip
-
+import Distribution.Client.Errors
 import qualified Hackage.Security.Client as Sec
 import qualified Hackage.Security.Util.Some as Sec
 
@@ -637,20 +636,18 @@ extractPkg verbosity entry blockNo = case Tar.entryContent entry of
         Just $ do
           let path = byteStringToFilePath content
           dirExists <- doesDirectoryExist path
-          result <-
-            if not dirExists
-              then return Nothing
-              else do
-                cabalFile <- tryFindAddSourcePackageDesc verbosity path "Error reading package index."
-                descr <- PackageDesc.Parse.readGenericPackageDescription normal cabalFile
-                return . Just $
-                  BuildTreeRef
-                    (refTypeFromTypeCode typeCode)
-                    (packageId descr)
-                    descr
-                    path
-                    blockNo
-          return result
+          if not dirExists
+            then return Nothing
+            else do
+              cabalFile <- tryFindAddSourcePackageDesc verbosity path "Error reading package index."
+              descr <- PackageDesc.Parse.readGenericPackageDescription normal cabalFile
+              return . Just $
+                BuildTreeRef
+                  (refTypeFromTypeCode typeCode)
+                  (packageId descr)
+                  descr
+                  path
+                  blockNo
   _ -> Nothing
   where
     fileName = Tar.entryPath entry
@@ -758,21 +755,15 @@ lazyUnfold step = goLazy . Just
 data Index
   = -- | The main index for the specified repository
     RepoIndex RepoContext Repo
-  | -- | A sandbox-local repository
-    -- Argument is the location of the index file
-    SandboxIndex FilePath
 
 indexFile :: Index -> FilePath
 indexFile (RepoIndex _ctxt repo) = indexBaseName repo <.> "tar"
-indexFile (SandboxIndex index) = index
 
 cacheFile :: Index -> FilePath
 cacheFile (RepoIndex _ctxt repo) = indexBaseName repo <.> "cache"
-cacheFile (SandboxIndex index) = index `replaceExtension` "cache"
 
 timestampFile :: Index -> FilePath
 timestampFile (RepoIndex _ctxt repo) = indexBaseName repo <.> "timestamp"
-timestampFile (SandboxIndex index) = index `replaceExtension` "timestamp"
 
 -- | Return 'True' if 'Index' uses 01-index format (aka secure repo)
 is01Index :: Index -> Bool
@@ -780,7 +771,6 @@ is01Index (RepoIndex _ repo) = case repo of
   RepoSecure{} -> True
   RepoRemote{} -> False
   RepoLocalNoIndex{} -> True
-is01Index (SandboxIndex _) = False
 
 updatePackageIndexCacheFile :: Verbosity -> Index -> IO ()
 updatePackageIndexCacheFile verbosity index = do
@@ -903,7 +893,7 @@ withIndexEntries verbosity (RepoIndex _repoCtxt (RepoLocalNoIndex (LocalRepo nam
 
         case Tar.foldEntries (readCabalEntry pkgId) Nothing (const Nothing) entries of
           Just ce -> return (Just ce)
-          Nothing -> die' verbosity $ "Cannot read .cabal file inside " ++ file
+          Nothing -> dieWithException verbosity $ CannotReadCabalFile file
 
   let (prefs, gpds) =
         partitionEithers $
@@ -925,7 +915,7 @@ withIndexEntries verbosity (RepoIndex _repoCtxt (RepoLocalNoIndex (LocalRepo nam
   callback entries
   where
     handler :: IOException -> IO a
-    handler e = die' verbosity $ "Error while updating index for " ++ unRepoName name ++ " repository " ++ show e
+    handler e = dieWithException verbosity $ ErrorUpdatingIndex (unRepoName name) e
 
     isTarGz :: FilePath -> Maybe PackageIdentifier
     isTarGz fp = do
@@ -940,7 +930,7 @@ withIndexEntries verbosity (RepoIndex _repoCtxt (RepoLocalNoIndex (LocalRepo nam
       | filename == Tar.entryPath entry
       , Tar.NormalFile contents _ <- Tar.entryContent entry =
           let bs = BS.toStrict contents
-           in fmap (\gpd -> CacheGPD gpd bs) $ parseGenericPackageDescriptionMaybe bs
+           in ((`CacheGPD` bs) <$> parseGenericPackageDescriptionMaybe bs)
       where
         filename = prettyShow pkgId FilePath.Posix.</> prettyShow (packageName pkgId) ++ ".cabal"
     readCabalEntry _ _ x = x
@@ -1043,7 +1033,7 @@ packageListFromCache verbosity mkPkg hnd Cache{..} = accum mempty [] mempty cach
       -- We have to read the .cabal file eagerly here because we can't cache the
       -- package id for build tree references - the user might edit the .cabal
       -- file after the reference was added to the index.
-      path <- liftM byteStringToFilePath . getEntryContent $ blockno
+      path <- fmap byteStringToFilePath . getEntryContent $ blockno
       pkg <- do
         let err = "Error reading package index from cache."
         file <- tryFindAddSourcePackageDesc verbosity path err
@@ -1092,11 +1082,7 @@ packageListFromCache verbosity mkPkg hnd Cache{..} = accum mempty [] mempty cach
 
     interror :: String -> IO a
     interror msg =
-      die' verbosity $
-        "internal error when reading package index: "
-          ++ msg
-          ++ "The package index or index cache is probably "
-          ++ "corrupt. Running cabal update might fix it."
+      dieWithException verbosity $ InternalError msg
 
 ------------------------------------------------------------------------
 -- Index cache data structure --
@@ -1105,7 +1091,7 @@ packageListFromCache verbosity mkPkg hnd Cache{..} = accum mempty [] mempty cach
 --
 -- If a corrupted index cache is detected this function regenerates
 -- the index cache and then reattempt to read the index once (and
--- 'die's if it fails again).
+-- 'dieWithException's if it fails again).
 readIndexCache :: Verbosity -> Index -> IO Cache
 readIndexCache verbosity index = do
   cacheOrFail <- readIndexCache' index
@@ -1121,7 +1107,7 @@ readIndexCache verbosity index = do
 
       updatePackageIndexCacheFile verbosity index
 
-      either (die' verbosity) (return . hashConsCache) =<< readIndexCache' index
+      either (dieWithException verbosity . CorruptedIndexCache) (return . hashConsCache) =<< readIndexCache' index
     Right res -> return (hashConsCache res)
 
 readNoIndexCache :: Verbosity -> Index -> IO NoIndexCache
@@ -1139,7 +1125,7 @@ readNoIndexCache verbosity index = do
 
       updatePackageIndexCacheFile verbosity index
 
-      either (die' verbosity) return =<< readNoIndexCache' index
+      either (dieWithException verbosity . CorruptedIndexCache) return =<< readNoIndexCache' index
 
     -- we don't hash cons local repository cache, they are hopefully small
     Right res -> return res
@@ -1150,8 +1136,7 @@ readIndexCache' :: Index -> IO (Either String Cache)
 readIndexCache' index
   | is01Index index = structuredDecodeFileOrFail (cacheFile index)
   | otherwise =
-      liftM (Right . read00IndexCache) $
-        BSS.readFile (cacheFile index)
+      Right . read00IndexCache <$> BSS.readFile (cacheFile index)
 
 readNoIndexCache' :: Index -> IO (Either String NoIndexCache)
 readNoIndexCache' index = structuredDecodeFileOrFail (cacheFile index)
@@ -1307,8 +1292,7 @@ instance Binary NoIndexCacheEntry where
           Just gpd -> return (CacheGPD gpd bs)
           Nothing -> fail "Failed to parse GPD"
       1 -> do
-        dep <- get
-        pure $ NoIndexCachePreference dep
+        NoIndexCachePreference <$> get
       _ -> fail "Failed to parse NoIndexCacheEntry"
 
 instance Structured NoIndexCacheEntry where

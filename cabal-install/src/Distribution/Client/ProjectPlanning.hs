@@ -84,7 +84,6 @@ import Distribution.Client.Store
 
 import Distribution.Client.Config
 import Distribution.Client.Dependency
-import Distribution.Client.Dependency.Types
 import Distribution.Client.DistDirLayout
 import Distribution.Client.FetchUtils
 import qualified Distribution.Client.IndexUtils as IndexUtils
@@ -191,6 +190,7 @@ import Data.List (deleteBy, groupBy)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Distribution.Client.Errors
 import System.FilePath
 import Text.PrettyPrint (colon, comma, fsep, hang, punctuate, quotes, text, vcat, ($$))
 import qualified Text.PrettyPrint as Disp
@@ -347,7 +347,9 @@ sanityCheckElaboratedPackage
 -- readProjectConfig also loads the global configuration, which is read with
 -- loadConfig and convertd to a ProjectConfig with convertLegacyGlobalConfig.
 --
--- *Important*
+
+-- * Important *
+
 --
 -- You can notice how some project config options are needed to read the
 -- project config! This is evident by the fact that rebuildProjectConfig
@@ -412,7 +414,7 @@ rebuildProjectConfig
           let fetchCompiler = do
                 -- have to create the cache directory before configuring the compiler
                 liftIO $ createDirectoryIfMissingVerbose verbosity True distProjectCacheDirectory
-                (compiler, Platform arch os, _) <- configureCompiler verbosity distDirLayout ((fst $ PD.ignoreConditions projectConfigSkeleton) <> cliConfig)
+                (compiler, Platform arch os, _) <- configureCompiler verbosity distDirLayout (fst (PD.ignoreConditions projectConfigSkeleton) <> cliConfig)
                 pure (os, arch, compilerInfo compiler)
 
           projectConfig <- instantiateProjectConfigSkeletonFetchingCompiler fetchCompiler mempty projectConfigSkeleton
@@ -539,9 +541,10 @@ configureCompiler
             )
           $ defaultProgramDb
 
-
 ------------------------------------------------------------------------------
+
 -- * Deciding what to do: making an 'ElaboratedInstallPlan'
+
 ------------------------------------------------------------------------------
 
 -- | Return an up-to-date elaborated install plan.
@@ -730,12 +733,6 @@ rebuildInstallPlan
               -- ones relevant for the compiler.
 
               liftIO $ do
-                solver <-
-                  chooseSolver
-                    verbosity
-                    (solverSettingSolver solverSettings)
-                    (compilerInfo compiler)
-
                 notice verbosity "Resolving dependencies..."
                 planOrError <-
                   foldProgress logMsg (pure . Left) (pure . Right) $
@@ -743,7 +740,6 @@ rebuildInstallPlan
                       verbosity
                       compiler
                       platform
-                      solver
                       solverSettings
                       (installedPackages <> installedPkgIndex)
                       sourcePkgDb
@@ -753,7 +749,7 @@ rebuildInstallPlan
                 case planOrError of
                   Left msg -> do
                     reportPlanningFailure projectConfig compiler platform localPackages
-                    die' verbosity msg
+                    dieWithException verbosity $ PhaseRunSolverErr msg
                   Right plan -> return (plan, pkgConfigDB, tis, ar)
           where
             corePackageDbs :: [PackageDB]
@@ -1240,7 +1236,6 @@ planPackages
   :: Verbosity
   -> Compiler
   -> Platform
-  -> Solver
   -> SolverSettings
   -> InstalledPackageIndex
   -> SourcePackageDb
@@ -1252,7 +1247,6 @@ planPackages
   verbosity
   comp
   platform
-  solver
   SolverSettings{..}
   installedPkgIndex
   sourcePkgDb
@@ -1263,7 +1257,6 @@ planPackages
       platform
       (compilerInfo comp)
       pkgConfigDB
-      solver
       resolverParams
     where
       -- TODO: [nice to have] disable multiple instances restriction in
@@ -4009,8 +4002,11 @@ setupHsScriptOptions
       , useDistPref = builddir
       , useLoggingHandle = Nothing -- this gets set later
       , useWorkingDir = Just srcdir
-      , useExtraPathEnv = elabExeDependencyPaths elab
-      , useExtraEnvOverrides = dataDirsEnvironmentForPlan distdir plan
+      , useExtraPathEnv = elabExeDependencyPaths elab ++ elabProgramPathExtra
+      , -- note that the above adds the extra-prog-path directly following the elaborated
+        -- dep paths, so that it overrides the normal path, but _not_ the elaborated extensions
+        -- for build-tools-depends.
+        useExtraEnvOverrides = dataDirsEnvironmentForPlan distdir plan
       , useWin32CleanHack = False -- TODO: [required eventually]
       , forceExternalSetupMethod = isParallelBuild
       , setupCacheLock = Just cacheLock
@@ -4274,18 +4270,23 @@ setupHsConfigureArgs elab@(ElaboratedConfiguredPackage{elabPkgOrComp = ElabCompo
         (compComponentName comp)
 
 setupHsBuildFlags
-  :: ElaboratedConfiguredPackage
+  :: Flag String
+  -> ElaboratedConfiguredPackage
   -> ElaboratedSharedConfig
   -> Verbosity
   -> FilePath
   -> Cabal.BuildFlags
-setupHsBuildFlags _ _ verbosity builddir =
+setupHsBuildFlags par_strat elab _ verbosity builddir =
   Cabal.BuildFlags
     { buildProgramPaths = mempty -- unused, set at configure time
     , buildProgramArgs = mempty -- unused, set at configure time
     , buildVerbosity = toFlag verbosity
     , buildDistPref = toFlag builddir
     , buildNumJobs = mempty -- TODO: [nice to have] sometimes want to use toFlag (Just numBuildJobs),
+    , buildUseSemaphore =
+        if elabSetupScriptCliVersion elab >= mkVersion [3, 9, 0, 0]
+          then par_strat
+          else mempty
     , buildArgs = mempty -- unused, passed via args not flags
     , buildCabalFilePath = mempty
     }
@@ -4539,7 +4540,7 @@ packageHashInputs
               Set.fromList
                 ( map
                     confInstId
-                    ( (map fst $ compLibDependencies comp)
+                    ( map fst (compLibDependencies comp)
                         ++ compExeDependencies comp
                     )
                 )

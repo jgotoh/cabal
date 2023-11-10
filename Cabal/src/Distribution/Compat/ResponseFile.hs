@@ -65,6 +65,12 @@ escape cs c
 
 #endif
 
+-- | The arg file / response file parser.
+--
+-- This is not a well-documented capability, and is a bit eccentric
+-- (try @cabal \@foo \@bar@ to see what that does), but is crucial
+-- for allowing complex arguments to cabal and cabal-install when
+-- using command prompts with strongly-limited argument length.
 expandResponse :: [String] -> IO [String]
 expandResponse = go recursionLimit "."
   where
@@ -76,7 +82,7 @@ expandResponse = go recursionLimit "."
       | otherwise = const $ hPutStrLn stderr "Error: response file recursion limit exceeded." >> exitFailure
 
     expand :: Int -> FilePath -> String -> IO [String]
-    expand n dir arg@('@' : f) = readRecursively n (dir </> f) `catchIOError` (const $ print "?" >> return [arg])
+    expand n dir arg@('@' : f) = readRecursively n (dir </> f) `catchIOError` const (print "?" >> return [arg])
     expand _n _dir x = return [x]
 
     readRecursively :: Int -> FilePath -> IO [String]

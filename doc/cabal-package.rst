@@ -4,9 +4,9 @@ Package Description
 The Cabal package is the unit of distribution. When installed, its
 purpose is to make available:
 
--  One or more Haskell programs.
+-  One or more Haskell programs (executables).
 
--  At most one library, exposing a number of Haskell modules.
+-  One or more libraries, exposing a number of Haskell modules.
 
 However having both a library and executables in a package does not work
 very well; if the executables depend on the library, they must
@@ -184,7 +184,7 @@ Example: A package containing a library and executable programs
     executable program2
       -- A different main.hs because of hs-source-dirs.
       main-is:          main.hs
-      -- No bound on internal libraries.
+      -- No bound on a library provided by the same package.
       build-depends:    TestPackage
       hs-source-dirs:   prog2
       other-modules:    Utils
@@ -419,7 +419,7 @@ describe the package as a whole:
 
     The type of build used by this package. Build types are the
     constructors of the
-    `BuildType <https://hackage.haskell.org/package/Cabal/docs/Distribution-PackageDescription.html#t:BuildType>`__
+    `BuildType <https://hackage.haskell.org/package/Cabal-syntax/docs/Distribution-Types-BuildType.html#t:BuildType>`__
     type. This field is optional and when missing, its default value
     is inferred according to the following rules:
 
@@ -801,15 +801,16 @@ Library
 
     Build information for libraries.
 
-    Currently, there can only be one publicly exposed library in a
-    package, and its name is the same as package name set by global
-    :pkg-field:`name` field. In this case, the ``name`` argument to
-    the :pkg-section:`library` section must be omitted.
+    A package can have one default library, which is identified by omitting the
+    ``name`` argument.
 
-    Starting with Cabal 2.0, private internal sub-library components
-    can be defined by setting the ``name`` field to a name
-    different from the current package's name; see section on
-    :ref:`Internal Libraries <sublibs>` for more information.
+    Starting with Cabal 2.0, sub-library components can be defined by setting
+    the ``name`` field to a name different from the current package's name; see
+    section on :ref:`Sublibraries <sublibs>` for more information. By
+    default, these sub-libraries are private and internal. Since Cabal 3.0,
+    these sub-libraries can also be exposed and used by other packages. See the
+    :pkg-field:`library:visibility` field and :ref:`Multiple Public Libraries
+    <publicsublibs>` for more information.
 
 The library section should contain the following fields:
 
@@ -851,7 +852,7 @@ The library section should contain the following fields:
     :since: 3.0
 
     :default:
-        ``private`` for internal libraries. Cannot be set for main
+        ``private`` for sublibraries. Cannot be set for main
         (unnamed) library, which is always public.
 
     Can be ``public`` or ``private``.
@@ -860,7 +861,7 @@ The library section should contain the following fields:
     allowed. If set to ``private``, depending on this library is allowed only
     from the same package.
 
-    See section on :ref:`Internal Libraries <sublibs>` for examples and more
+    See section on :ref:`Sublibraries <sublibs>` for examples and more
     information.
 
 .. pkg-field:: reexported-modules: exportlist
@@ -902,13 +903,13 @@ section on `build information`_).
 
 .. _sublibs:
 
-**Internal Libraries**
+**Sublibraries**
 
-Cabal 2.0 and later support "internal libraries", which are extra named
+Cabal 2.0 and later support "sublibraries", which are extra named
 libraries (as opposed to the usual unnamed library section). For
 example, suppose that your test suite needs access to some internal
 modules in your library, which you do not otherwise want to export. You
-could put these modules in an internal library, which the main library
+could put these modules in a sublibrary, which the main library
 and the test suite :pkg-field:`build-depends` upon. Then your Cabal file might
 look something like this:
 
@@ -941,11 +942,11 @@ look something like this:
         build-depends:    foo-internal, base
         default-language: Haskell2010
 
-Internal libraries are also useful for packages that define multiple
+Sublibraries are also useful for packages that define multiple
 executables, but do not define a publicly accessible library. Internal
 libraries are only visible internally in the package (so they can only
 be added to the :pkg-field:`build-depends` of same-package libraries,
-executables, test suites, etc.) Internal libraries locally shadow any
+executables, test suites, etc.) Sublibraries locally shadow any
 packages which have the same name; consequently, don't name an internal
 library with the same name as an external dependency if you need to be
 able to refer to the external dependency in a
@@ -1002,10 +1003,12 @@ a real-world use case:
 
 .. note::
     For packages using ``cabal-version: 3.4`` or higher, the syntax to
-    specify an internal library in a ``build-depends:`` section is
+    specify a sublibrary in a ``build-depends:`` section is
     ``package-name:internal-library-name``.
 
-**Multiple public libraries**
+.. _publicsublibs:
+
+**Multiple Public Libraries**
 
 Cabal 3.0 and later support exposing multiple libraries from a single package
 through the field :pkg-field:`library:visibility`.
@@ -1017,138 +1020,12 @@ For more information about the rationale and some examples, see
 ..
     TODO inline the blog post
 
-
-Opening an interpreter session
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-While developing a package, it is often useful to make its code
-available inside an interpreter session. This can be done with the
-``repl`` command:
-
-.. code-block:: console
-
-    $ cabal repl
-
-The name comes from the acronym
-`REPL <http://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop>`__,
-which stands for "read-eval-print-loop". By default ``cabal repl`` loads
-the first component in a package. If the package contains several named
-components, the name can be given as an argument to ``repl``. The name
-can be also optionally prefixed with the component's type for
-disambiguation purposes. Example:
-
-.. code-block:: console
-
-    $ cabal repl foo
-    $ cabal repl exe:foo
-    $ cabal repl test:bar
-    $ cabal repl bench:baz
-
-Freezing dependency versions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If a package is built in several different environments, such as a
-development environment, a staging environment and a production
-environment, it may be necessary or desirable to ensure that the same
-dependency versions are selected in each environment. This can be done
-with the ``freeze`` command:
-
-.. code-block:: console
-
-    $ cabal freeze
-
-The command writes the selected version for all dependencies to the
-``cabal.config`` file. All environments which share this file will use
-the dependency versions specified in it.
-
-Generating dependency version bounds
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Cabal also has the ability to suggest dependency version bounds that
-conform to the `Package Versioning Policy`_, which is
-a recommended versioning system for publicly released Cabal packages.
-This is done by running the ``gen-bounds`` command:
-
-.. code-block:: console
-
-    $ cabal gen-bounds
-
-For example, given the following dependencies without bounds specified in
-:pkg-field:`build-depends`:
-
-::
-
-    build-depends:
-      base,
-      mtl,
-      transformers,
-
-``gen-bounds`` might suggest changing them to the following:
-
-::
-
-    build-depends:
-      base          >= 4.15.0 && < 4.16,
-      mtl           >= 2.2.2 && < 2.3,
-      transformers  >= 0.5.6 && < 0.6,
-
-
-Listing outdated dependency version bounds
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Manually updating dependency version bounds in a ``.cabal`` file or a
-freeze file can be tedious, especially when there's a lot of
-dependencies. The ``cabal outdated`` command is designed to help with
-that. It will print a list of packages for which there is a new
-version on Hackage that is outside the version bound specified in the
-``build-depends`` field. The ``outdated`` command can also be
-configured to act on the freeze file (both old- and v2-style) and
-ignore major (or all) version bumps on Hackage for a subset of
-dependencies.
-
-Examples:
-
-.. code-block:: console
-
-    $ cd /some/package
-    $ cabal outdated
-    Outdated dependencies:
-    haskell-src-exts <1.17 (latest: 1.19.1)
-    language-javascript <0.6 (latest: 0.6.0.9)
-    unix ==2.7.2.0 (latest: 2.7.2.1)
-
-    $ cabal outdated --simple-output
-    haskell-src-exts
-    language-javascript
-    unix
-
-    $ cabal outdated --ignore=haskell-src-exts
-    Outdated dependencies:
-    language-javascript <0.6 (latest: 0.6.0.9)
-    unix ==2.7.2.0 (latest: 2.7.2.1)
-
-    $ cabal outdated --ignore=haskell-src-exts,language-javascript,unix
-    All dependencies are up to date.
-
-    $ cabal outdated --ignore=haskell-src-exts,language-javascript,unix -q
-    $ echo $?
-    0
-
-    $ cd /some/other/package
-    $ cabal outdated --freeze-file
-    Outdated dependencies:
-    HTTP ==4000.3.3 (latest: 4000.3.4)
-    HUnit ==1.3.1.1 (latest: 1.5.0.0)
-
-    $ cabal outdated --freeze-file --ignore=HTTP --minor=HUnit
-    Outdated dependencies:
-    HUnit ==1.3.1.1 (latest: 1.3.1.2)
-
-See `the command documentation <cabal-commands.html#cabal-outdated>`__ for a
-list of available flags.
-
 Executables
 ^^^^^^^^^^^
+
+A package description can contain multiple executable sections.
+The documentation of the `cabal run <cabal-commands.html#cabal-run>`__ command
+contains detailed information on how to run an executable.
 
 .. pkg-section:: executable name
     :synopsis: Executable build info section.
@@ -1180,25 +1057,13 @@ build information fields (see the section on `build information`_).
     be run by other programs rather than the user. Private executables are
     installed into `$libexecdir/$libexecsubdir`.
 
-Running executables
-"""""""""""""""""""
-
-You can have Cabal build and run your executables by using the ``run``
-command:
-
-.. code-block:: console
-
-    $ cabal run EXECUTABLE [-- EXECUTABLE_FLAGS]
-
-This command will configure, build and run the executable
-``EXECUTABLE``. The double dash separator is required to distinguish
-executable flags from ``run``'s own flags. If there is only one
-executable defined in the whole package, the executable's name can be
-omitted. See the output of ``cabal help run`` for a list of options you
-can pass to ``cabal run``.
 
 Test suites
 ^^^^^^^^^^^
+
+A package description can contain multiple test suite sections.
+The documentation of the `cabal test <cabal-commands.html#cabal-test>`__ command
+contains detailed information on how to run test suites.
 
 .. pkg-section:: test-suite name
     :synopsis: Test suite build information.
@@ -1266,7 +1131,7 @@ the :pkg-field:`test-module` field.
  preprocessors. These executables are invoked as so: ``exe-name
  TARGETDIR [SOURCEDIRS] -- [GHCOPTIONS]``. The arguments are, in order a target dir for
  output, a sequence of all source directories with source files of
- local lib components that the given test stanza dependens on, and
+ local lib components that the given test stanza depends on, and
  following a double dash, all options cabal would pass to ghc for a
  build. They are expected to output a newline-seperated list of
  generated modules which have been written to the targetdir
@@ -1357,22 +1222,12 @@ be provided by the library that provides the testing facility.
             , setOption = \_ _ -> Right fails
             }
 
-Running test suites
-"""""""""""""""""""
-
-You can have Cabal run your test suites using its built-in test runner:
-
-::
-
-    $ cabal configure --enable-tests
-    $ cabal build
-    $ cabal test
-
-See the output of ``cabal help test`` for a list of options you can pass
-to ``cabal test``.
-
 Benchmarks
 ^^^^^^^^^^
+
+A package description can contain multiple benchmark sections.
+The documentation of the `cabal bench <cabal-commands.html#cabal-bench>`__ command
+contains detailed information on how to run benchmarks.
 
 .. pkg-section:: benchmark name
     :since: 1.9.2
@@ -1446,20 +1301,6 @@ Example:
         end <- getCurrentTime
         putStrLn $ "fib 20 took " ++ show (diffUTCTime end start)
 
-Running benchmarks
-""""""""""""""""""
-
-You can have Cabal run your benchmark using its built-in benchmark
-runner:
-
-::
-
-    $ cabal configure --enable-benchmarks
-    $ cabal build
-    $ cabal bench
-
-See the output of ``cabal help bench`` for a list of options you can
-pass to ``cabal bench``.
 
 Foreign libraries
 ^^^^^^^^^^^^^^^^^
@@ -1629,7 +1470,7 @@ system-dependent values for these fields.
     Multiple libraries from the same package can be specified with the shorthand
     syntax ``pkg:{lib1,lib2}```.
 
-    See section on :ref:`Internal Libraries <sublibs>` for examples and more
+    See section on :ref:`Multiple Public Libraries <publicsublibs>` for examples and more
     information.
 
     **Version Constraints**
@@ -1822,7 +1663,7 @@ system-dependent values for these fields.
     A list of Haskell extensions used by every module. These determine
     corresponding compiler options enabled for all files. Extension
     names are the constructors of the
-    `Extension <https://hackage.haskell.org/package/Cabal/docs/Language-Haskell-Extension.html#t:Extension>`__
+    `Extension <https://hackage.haskell.org/package/Cabal-syntax/docs/Language-Haskell-Extension.html#t:Extension>`__
     type. For example, ``CPP`` specifies that Haskell source files are
     to be preprocessed with a C preprocessor.
 
@@ -1858,7 +1699,13 @@ system-dependent values for these fields.
 .. pkg-field:: default-language: identifier
    :since: 1.12
 
-   TBW
+    Specifies a language standard or a group of language extensions to be activated for the project. In the case of GHC, `see here for details <https://downloads.haskell.org/ghc/latest/docs/users_guide/exts/control.html#controlling-extensions>`__.
+
+    The possible values are:
+
+    -  ``GHC2021`` (only available for GHC version newer than ``9.2``)
+    -  ``Haskell2010``
+    -  ``Haskell98``
 
 .. pkg-field:: other-languages: identifier
    :since: 1.12
@@ -2559,7 +2406,7 @@ Configuration Flags
 Conditional Blocks
 ^^^^^^^^^^^^^^^^^^
 
-Conditional blocks may appear anywhere inside a library or executable
+Conditional blocks may appear anywhere inside a component or common
 section. They have to follow rather strict formatting rules. Conditional
 blocks must always be of the shape
 
@@ -2900,38 +2747,6 @@ The exact fields are as follows:
     This field is optional. It defaults to empty which corresponds to the
     root directory of the repository.
 
-Downloading a package's source
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ``cabal get`` command allows to access a package's source code -
-either by unpacking a tarball downloaded from Hackage (the default) or
-by checking out a working copy from the package's source repository.
-
-::
-
-    $ cabal get [FLAGS] PACKAGES
-
-The ``get`` command supports the following options:
-
-``-d --destdir`` *PATH*
-    Where to place the package source, defaults to (a subdirectory of)
-    the current directory.
-``-s --source-repository`` *[head\|this\|...]*
-    Clone the package's source repository using the appropriate version
-    control system. The optional argument allows to choose a specific
-    repository kind.
-``--index-state`` *[HEAD\|@<unix-timestamp>\|<iso8601-utc-timestamp>]*
-    Use source package index state as it existed at a previous time. Accepts
-    unix-timestamps (e.g. ``@1474732068``), ISO8601 UTC timestamps (e.g.
-    ``2016-09-24T17:47:48Z``), or ``HEAD`` (default).
-    This determines which package versions are available as well as which
-    ``.cabal`` file revision is selected (unless ``--pristine`` is used).
-``--only-package-description``
-    Unpack only the package description file. A synonym,
-    ``--package-description-only``, is provided for convenience.
-``--pristine``
-    Unpack the original pristine tarball, rather than updating the
-    ``.cabal`` file with the latest revision from the package archive.
 
 Custom setup scripts
 --------------------
@@ -3555,7 +3370,7 @@ just depending on both ``str-impl`` and ``parametrized``:
 
 Note that due to technical limitations, you cannot directly define
 ``Str`` in the ``combined`` library; it must be placed in its own
-library (you can use :ref:`Internal Libraries <sublibs>` to conveniently
+library (you can use :ref:`Sublibraries <sublibs>` to conveniently
 define a sub-library).
 
 However, a more common situation is that your names don't match up
@@ -3587,7 +3402,7 @@ the requirements and provided modules renamed to be distinct.
         parametrized (MyModule as MyModule.BS) requires (Str as Data.ByteString)
 
 Intensive use of Backpack sometimes involves creating lots of small
-parametrized libraries; :ref:`Internal Libraries <sublibs>` can be used
+parametrized libraries; :ref:`Sublibraries <sublibs>` can be used
 to define all of these libraries in a single package without having to
 create many separate Cabal packages.  You may also find it useful to use
 :pkg-field:`library:reexported-modules` to reexport instantiated
