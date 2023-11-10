@@ -7,7 +7,7 @@ module Distribution.Client.ProjectConfig.FieldGrammar
 
 import qualified Data.Set as Set
 import qualified Distribution.Client.ProjectConfig.Lens as L
-import Distribution.Client.ProjectConfig.Types (ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..), PackageConfig (..))
+import Distribution.Client.ProjectConfig.Types (PackageConfig (..), ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..))
 import Distribution.Client.Utils.Parsec
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
@@ -26,13 +26,14 @@ projectConfigFieldGrammar source =
     <*> blurFieldGrammar L.projectConfigShared (projectConfigSharedFieldGrammar source)
     <*> pure provenance
     <*> pure mempty
-    -- ^ PackageConfig to be applied to all packages, specified inside 'package *' stanza
+    -- \^ PackageConfig to be applied to all packages, specified inside 'package *' stanza
     -- <*> blurFieldGrammar L.projectConfigLocalPackages packageConfigFieldGrammar
     <*> pure mempty
-    -- ^ PackageConfig to be applied to locally built packages, specified not inside a stanza
+    -- \^ PackageConfig to be applied to locally built packages, specified not inside a stanza
     <*> pure mempty
-    -- ^ PackageConfig applied to explicitly named packages
   where
+    -- \^ PackageConfig applied to explicitly named packages
+
     provenance = Set.singleton (Explicit source)
 
 formatPackageVersionConstraints :: [PackageVersionConstraint] -> List CommaVCat (Identity PackageVersionConstraint) PackageVersionConstraint
@@ -51,6 +52,7 @@ projectConfigBuildOnlyFieldGrammar =
     <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure mempty
     <*> monoidalFieldAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir
     <*> monoidalFieldAla "jobs" (alaFlag NumJobs) L.projectConfigNumJobs
+    <*> optionalFieldDef "semaphore" L.projectConfigUseSemaphore mempty
     <*> optionalFieldDef "keep-going" L.projectConfigKeepGoing mempty
     <*> optionalFieldDef "offline" L.projectConfigOfflineMode mempty
     <*> optionalFieldDef "haddock-keep-temp-files" L.projectConfigKeepTempFiles mempty

@@ -4,6 +4,7 @@ build-log: myLog.log
 report-planning-failure: true
 symlink-bindir: some-bindir
 jobs: 4
+semaphore: True
 keep-going: true
 offline: true
 haddock-keep-temp-files:  true

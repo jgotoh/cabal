@@ -114,6 +114,10 @@ projectConfigNumJobs :: Lens' ProjectConfigBuildOnly (Flag (Maybe Int))
 projectConfigNumJobs f s = fmap (\x -> s{T.projectConfigNumJobs = x}) (f (T.projectConfigNumJobs s))
 {-# INLINEABLE projectConfigNumJobs #-}
 
+projectConfigUseSemaphore :: Lens' ProjectConfigBuildOnly (Flag Bool)
+projectConfigUseSemaphore f s = fmap (\x -> s{T.projectConfigUseSemaphore = x}) (f (T.projectConfigUseSemaphore s))
+{-# INLINEABLE projectConfigUseSemaphore #-}
+
 projectConfigKeepGoing :: Lens' ProjectConfigBuildOnly (Flag Bool)
 projectConfigKeepGoing f s = fmap (\x -> s{T.projectConfigKeepGoing = x}) (f (T.projectConfigKeepGoing s))
 {-# INLINEABLE projectConfigKeepGoing #-}

@@ -116,6 +116,7 @@ testProjectConfigBuildOnly = do
     projectConfigReportPlanningFailure = toFlag True
     projectConfigSymlinkBinDir = toFlag "some-bindir"
     projectConfigNumJobs = toFlag $ Just 4
+    projectConfigUseSemaphore = toFlag True
     projectConfigKeepGoing = toFlag True
     projectConfigOfflineMode = toFlag True
     projectConfigKeepTempFiles = toFlag True
