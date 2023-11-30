@@ -78,6 +78,7 @@ module Distribution.Simple.Compiler
   ) where
 
 import Distribution.Compat.Prelude
+import Distribution.Parsec
 import Distribution.Pretty
 import Prelude ()
 
@@ -243,6 +244,12 @@ data OptimisationLevel
 instance Binary OptimisationLevel
 instance Structured OptimisationLevel
 
+instance Parsec OptimisationLevel where
+  parsec = parsecOptimisationLevel
+
+parsecOptimisationLevel :: CabalParsing m => m OptimisationLevel
+parsecOptimisationLevel = flagToOptimisationLevel <$> pure <$> parsecToken
+
 flagToOptimisationLevel :: Maybe String -> OptimisationLevel
 flagToOptimisationLevel Nothing = NormalOptimisation
 flagToOptimisationLevel (Just s) = case reads s of
@@ -275,6 +282,12 @@ data DebugInfoLevel
 
 instance Binary DebugInfoLevel
 instance Structured DebugInfoLevel
+
+instance Parsec DebugInfoLevel where
+  parsec = parsecDebugInfoLevel
+
+parsecDebugInfoLevel :: CabalParsing m => m DebugInfoLevel
+parsecDebugInfoLevel = flagToDebugInfoLevel <$> pure <$> parsecToken
 
 flagToDebugInfoLevel :: Maybe String -> DebugInfoLevel
 flagToDebugInfoLevel Nothing = NormalDebugInfo
@@ -469,6 +482,12 @@ data ProfDetailLevel
 
 instance Binary ProfDetailLevel
 instance Structured ProfDetailLevel
+
+instance Parsec ProfDetailLevel where
+  parsec = parsecProfDetailLevel
+
+parsecProfDetailLevel :: CabalParsing m => m ProfDetailLevel
+parsecProfDetailLevel = flagToProfDetailLevel <$> parsecToken
 
 flagToProfDetailLevel :: String -> ProfDetailLevel
 flagToProfDetailLevel "" = ProfDetailDefault

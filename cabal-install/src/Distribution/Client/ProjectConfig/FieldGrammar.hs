@@ -18,6 +18,7 @@ import Distribution.Verbosity
 -- TODO check usages of monoidalField: "Field which can be define multiple times, and the results are mappended."
 -- I've used it often for fields that should not be appended if defined multiple times, basically any field that is not a list
 -- I expect I can just use optionalFieldDef/Ala in these cases, see optionalFieldDefAla "haddock-css"
+-- TODO check if ^^^ availableSince can be used in some of the fields (see FieldGrammar of PackageDescription)
 
 projectConfigFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source =
@@ -124,7 +125,7 @@ packageConfigFieldGrammar =
     <*> optionalFieldDef "executable-profiling" L.packageConfigProfExe mempty
     <*> optionalFieldDef "profiling-detail" L.packageConfigProfDetail mempty
     <*> optionalFieldDef "library-profiling-detail" L.packageConfigProfLibDetail mempty
-    <*> monoidalFieldAla "configure-options" (alaList NoCommaFSep) L.packageConfigConfigureArgs
+    <*> monoidalFieldAla "configure-options" (alaList' NoCommaFSep Token) L.packageConfigConfigureArgs
     <*> optionalFieldDef "optimization" L.packageConfigOptimization mempty
     <*> optionalFieldDef "program-prefix" L.packageConfigProgPrefix mempty
     <*> optionalFieldDef "program-suffix" L.packageConfigProgSuffix mempty
@@ -147,27 +148,27 @@ packageConfigFieldGrammar =
     <*> optionalFieldDef "documentation" L.packageConfigDocumentation mempty
     <*> optionalFieldDef "haddock-hoogle" L.packageConfigHaddockHoogle mempty
     <*> optionalFieldDef "haddock-html" L.packageConfigHaddockHtml mempty
-    <*> optionalFieldDef "haddock-html-location-log" L.packageConfigHaddockHtmlLocation mempty
-    <*> optionalFieldDef "haddock-foreign-libraries"  L.packageConfigHaddockForeignLibs mempty
-    <*> optionalFieldDef "haddock-executables"  L.packageConfigHaddockExecutables mempty
-    <*> optionalFieldDef "haddock-tests"  L.packageConfigHaddockTestSuites mempty
-    <*> optionalFieldDef "haddock-benchmarks"  L.packageConfigHaddockBenchmarks mempty
-    <*> optionalFieldDef "haddock-internal"  L.packageConfigHaddockInternal mempty
+    <*> optionalFieldDefAla "haddock-html-location" (alaFlag Token) L.packageConfigHaddockHtmlLocation mempty
+    <*> optionalFieldDef "haddock-foreign-libraries" L.packageConfigHaddockForeignLibs mempty
+    <*> optionalFieldDef "haddock-executables" L.packageConfigHaddockExecutables mempty
+    <*> optionalFieldDef "haddock-tests" L.packageConfigHaddockTestSuites mempty
+    <*> optionalFieldDef "haddock-benchmarks" L.packageConfigHaddockBenchmarks mempty
+    <*> optionalFieldDef "haddock-internal" L.packageConfigHaddockInternal mempty
     <*> optionalFieldDefAla "haddock-css" (alaFlag FilePathNT) L.packageConfigHaddockCss mempty
-    <*> optionalFieldDef "haddock-hyperlink-source"  L.packageConfigHaddockLinkedSource mempty
-    <*> optionalFieldDef "haddock-quickjump"  L.packageConfigHaddockQuickJump mempty
+    <*> optionalFieldDef "haddock-hyperlink-source" L.packageConfigHaddockLinkedSource mempty
+    <*> optionalFieldDef "haddock-quickjump" L.packageConfigHaddockQuickJump mempty
     <*> optionalFieldDefAla "haddock-hscolour-css" (alaFlag FilePathNT) L.packageConfigHaddockHscolourCss mempty
     <*> optionalFieldDef "haddock-contents-location" L.packageConfigHaddockContents mempty
     <*> optionalFieldDef "haddock-index-location" L.packageConfigHaddockIndex mempty
-    <*> optionalFieldDef "haddock-base-url" L.packageConfigHaddockBaseUrl mempty
-    <*> optionalFieldDef "haddock-lib" L.packageConfigHaddockLib mempty
+    <*> optionalFieldDefAla "haddock-base-url" (alaFlag Token) L.packageConfigHaddockBaseUrl mempty
+    <*> optionalFieldDefAla "haddock-lib" (alaFlag Token) L.packageConfigHaddockLib mempty
     <*> optionalFieldDefAla "haddock-output-dir" (alaFlag FilePathNT) L.packageConfigHaddockOutputDir mempty
     <*> optionalFieldDef "haddock-for-hackage" L.packageConfigHaddockForHackage mempty
     <*> optionalFieldDef "human-log" L.packageConfigTestHumanLog mempty
     <*> optionalFieldDef "machine-log" L.packageConfigTestMachineLog mempty
     <*> optionalFieldDef "test-show-details" L.packageConfigTestShowDetails mempty
-    <*> optionalFieldDef "test-keep-tix-files"  L.packageConfigTestKeepTix mempty
+    <*> optionalFieldDef "test-keep-tix-files" L.packageConfigTestKeepTix mempty
     <*> optionalFieldDefAla "test-wrapper" (alaFlag FilePathNT) L.packageConfigTestWrapper mempty
-    <*> optionalFieldDef "test-fail-when-no-test-suites"  L.packageConfigTestFailWhenNoTestSuites mempty
+    <*> optionalFieldDef "test-fail-when-no-test-suites" L.packageConfigTestFailWhenNoTestSuites mempty
     <*> monoidalFieldAla "test-options" (alaList NoCommaFSep) L.packageConfigTestTestOptions
     <*> monoidalFieldAla "benchmark-options" (alaList NoCommaFSep) L.packageConfigBenchmarkOptions
