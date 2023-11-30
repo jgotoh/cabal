@@ -61,8 +61,8 @@ haddock-for-hackage: for-hackage
 test-log: human-log.log
 test-machine-log: machine.log
 test-keep-tix-files: true
+test-wrapper: /test-wrapper-path/
 test-fail-when-no-test-suites: true
 test-show-details: streaming
-test-wrapper: /test-wrapper-path/
 test-options: --some-option 42
 benchmark-options: --some-benchmark-option --another-option

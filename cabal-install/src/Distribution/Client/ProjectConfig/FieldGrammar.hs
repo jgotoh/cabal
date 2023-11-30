@@ -15,6 +15,10 @@ import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 import Distribution.Verbosity
 
+-- TODO check usages of monoidalField: "Field which can be define multiple times, and the results are mappended."
+-- I've used it often for fields that should not be appended if defined multiple times, basically any field that is not a list
+-- I expect I can just use optionalFieldDef/Ala in these cases, see optionalFieldDefAla "haddock-css"
+
 projectConfigFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source =
   ProjectConfig
@@ -100,71 +104,70 @@ projectConfigSharedFieldGrammar source =
     <*> pure mempty -- cli flag: projectConfigPerComponent
     <*> pure mempty -- cli flag: projectConfigIndependentGoals
     <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
-    -- <*> pure mempty -- cli flag: projectConfigProgPathExtra
     <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
     <*> monoidalField "multi-repl" L.projectConfigMultiRepl
 
 packageConfigFieldGrammar :: ParsecFieldGrammar' PackageConfig
 packageConfigFieldGrammar =
   PackageConfig
-    <$> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
-    <*> undefined
+    <$> pure mempty -- program-options stanza
+    <*> pure mempty -- program-locations stanza
+    <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.packageConfigProgramPathExtra
+    <*> monoidalField "flags" L.packageConfigFlagAssignment
+    <*> optionalFieldDef "library-vanilla" L.packageConfigVanillaLib mempty
+    <*> optionalFieldDef "shared" L.packageConfigSharedLib mempty
+    <*> optionalFieldDef "static" L.packageConfigStaticLib mempty
+    <*> optionalFieldDef "executable-dynamic" L.packageConfigDynExe mempty
+    <*> optionalFieldDef "executable-static" L.packageConfigFullyStaticExe mempty
+    <*> optionalFieldDef "profilin" L.packageConfigProf mempty
+    <*> optionalFieldDef "library-profiling" L.packageConfigProfLib mempty
+    <*> optionalFieldDef "executable-profiling" L.packageConfigProfExe mempty
+    <*> optionalFieldDef "profiling-detail" L.packageConfigProfDetail mempty
+    <*> optionalFieldDef "library-profiling-detail" L.packageConfigProfLibDetail mempty
+    <*> monoidalFieldAla "configure-options" (alaList NoCommaFSep) L.packageConfigConfigureArgs
+    <*> optionalFieldDef "optimization" L.packageConfigOptimization mempty
+    <*> optionalFieldDef "program-prefix" L.packageConfigProgPrefix mempty
+    <*> optionalFieldDef "program-suffix" L.packageConfigProgSuffix mempty
+    <*> monoidalFieldAla "extra-lib-dirs" (alaList' FSep FilePathNT) L.packageConfigExtraLibDirs
+    <*> monoidalFieldAla "extra-lib-dirs-static" (alaList' FSep FilePathNT) L.packageConfigExtraLibDirsStatic
+    <*> monoidalFieldAla "extra-framework-dirs" (alaList' FSep FilePathNT) L.packageConfigExtraFrameworkDirs
+    <*> monoidalFieldAla "extra-include-dirs" (alaList' FSep FilePathNT) L.packageConfigExtraIncludeDirs
+    <*> optionalFieldDef "library-for-ghci" L.packageConfigGHCiLib mempty
+    <*> optionalFieldDef "split-sections" L.packageConfigSplitSections mempty
+    <*> optionalFieldDef "split-objs" L.packageConfigSplitObjs mempty
+    <*> optionalFieldDef "executable-stripping" L.packageConfigStripExes mempty
+    <*> optionalFieldDef "library-stripping" L.packageConfigStripLibs mempty
+    <*> optionalFieldDef "tests" L.packageConfigTests mempty
+    <*> optionalFieldDef "benchmarks" L.packageConfigBenchmarks mempty
+    <*> optionalFieldDef "coverage" L.packageConfigCoverage mempty
+    <*> optionalFieldDef "relocatable" L.packageConfigRelocatable mempty
+    <*> optionalFieldDef "debug-info" L.packageConfigDebugInfo mempty
+    <*> optionalFieldDef "build-info" L.packageConfigDumpBuildInfo mempty
+    <*> optionalFieldDef "run-tests" L.packageConfigRunTests mempty
+    <*> optionalFieldDef "documentation" L.packageConfigDocumentation mempty
+    <*> optionalFieldDef "haddock-hoogle" L.packageConfigHaddockHoogle mempty
+    <*> optionalFieldDef "haddock-html" L.packageConfigHaddockHtml mempty
+    <*> optionalFieldDef "haddock-html-location-log" L.packageConfigHaddockHtmlLocation mempty
+    <*> optionalFieldDef "haddock-foreign-libraries"  L.packageConfigHaddockForeignLibs mempty
+    <*> optionalFieldDef "haddock-executables"  L.packageConfigHaddockExecutables mempty
+    <*> optionalFieldDef "haddock-tests"  L.packageConfigHaddockTestSuites mempty
+    <*> optionalFieldDef "haddock-benchmarks"  L.packageConfigHaddockBenchmarks mempty
+    <*> optionalFieldDef "haddock-internal"  L.packageConfigHaddockInternal mempty
+    <*> optionalFieldDefAla "haddock-css" (alaFlag FilePathNT) L.packageConfigHaddockCss mempty
+    <*> optionalFieldDef "haddock-hyperlink-source"  L.packageConfigHaddockLinkedSource mempty
+    <*> optionalFieldDef "haddock-quickjump"  L.packageConfigHaddockQuickJump mempty
+    <*> optionalFieldDefAla "haddock-hscolour-css" (alaFlag FilePathNT) L.packageConfigHaddockHscolourCss mempty
+    <*> optionalFieldDef "haddock-contents-location" L.packageConfigHaddockContents mempty
+    <*> optionalFieldDef "haddock-index-location" L.packageConfigHaddockIndex mempty
+    <*> optionalFieldDef "haddock-base-url" L.packageConfigHaddockBaseUrl mempty
+    <*> optionalFieldDef "haddock-lib" L.packageConfigHaddockLib mempty
+    <*> optionalFieldDefAla "haddock-output-dir" (alaFlag FilePathNT) L.packageConfigHaddockOutputDir mempty
+    <*> optionalFieldDef "haddock-for-hackage" L.packageConfigHaddockForHackage mempty
+    <*> optionalFieldDef "human-log" L.packageConfigTestHumanLog mempty
+    <*> optionalFieldDef "machine-log" L.packageConfigTestMachineLog mempty
+    <*> optionalFieldDef "test-show-details" L.packageConfigTestShowDetails mempty
+    <*> optionalFieldDef "test-keep-tix-files"  L.packageConfigTestKeepTix mempty
+    <*> optionalFieldDefAla "test-wrapper" (alaFlag FilePathNT) L.packageConfigTestWrapper mempty
+    <*> optionalFieldDef "test-fail-when-no-test-suites"  L.packageConfigTestFailWhenNoTestSuites mempty
+    <*> monoidalFieldAla "test-options" (alaList NoCommaFSep) L.packageConfigTestTestOptions
+    <*> monoidalFieldAla "benchmark-options" (alaList NoCommaFSep) L.packageConfigBenchmarkOptions
