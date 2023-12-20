@@ -32,8 +32,7 @@ projectConfigFieldGrammar source =
     <*> pure provenance
     <*> pure mempty
     -- \^ PackageConfig to be applied to all packages, specified inside 'package *' stanza
-    -- <*> blurFieldGrammar L.projectConfigLocalPackages packageConfigFieldGrammar
-    <*> pure mempty
+    <*> blurFieldGrammar L.projectConfigLocalPackages packageConfigFieldGrammar
     -- \^ PackageConfig to be applied to locally built packages, specified not inside a stanza
     <*> pure mempty
   where
