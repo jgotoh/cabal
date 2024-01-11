@@ -14,7 +14,6 @@ module Distribution.Parsec
   , simpleParsecBS
   , simpleParsec'
   , simpleParsecW'
-  , explicitSimpleParsec
   , lexemeParsec
   , eitherParsec
   , explicitEitherParsec
@@ -211,13 +210,6 @@ simpleParsecW' :: Parsec a => CabalSpecVersion -> String -> Maybe a
 simpleParsecW' spec =
   either (const Nothing) (\(x, ws) -> if null ws then Just x else Nothing)
     . runParsecParser' spec ((,) <$> lexemeParsec <*> liftParsec Parsec.getState) "<simpleParsec>"
-    . fieldLineStreamFromString
-
--- | Parse a 'String' with given 'ParsecParser'. Like 'explicitEitherParsec' but for 'Maybe'. Trailing whitespace is accepted.
-explicitSimpleParsec :: ParsecParser a -> String -> Maybe a
-explicitSimpleParsec parser =
-  either (const Nothing) Just
-    . runParsecParser (parser <* P.spaces) "<simpleParsec>"
     . fieldLineStreamFromString
 
 -- | Parse a 'String' with 'lexemeParsec'.
