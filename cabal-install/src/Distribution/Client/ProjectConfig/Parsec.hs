@@ -197,7 +197,7 @@ readProgramName suffix programDb fieldName =
 
 parseProgramName :: FieldSuffix -> FieldName -> Maybe String
 parseProgramName suffix fieldName = case runParsecParser parser' "<parseProgramName>" fieldNameStream of
-  Left err -> trace (show err) Nothing -- TODO should parseWarning Unknown Field fieldName
+  Left _ -> Nothing
   Right str -> Just str
   where
     parser' = P.manyTill P.anyChar (P.try ((P.string suffix)) <* P.eof)

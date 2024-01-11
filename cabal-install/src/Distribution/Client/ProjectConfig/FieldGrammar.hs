@@ -119,7 +119,7 @@ packageConfigFieldGrammar =
     <*> optionalFieldDef "static" L.packageConfigStaticLib mempty
     <*> optionalFieldDef "executable-dynamic" L.packageConfigDynExe mempty
     <*> optionalFieldDef "executable-static" L.packageConfigFullyStaticExe mempty
-    <*> optionalFieldDef "profilin" L.packageConfigProf mempty
+    <*> optionalFieldDef "profiling" L.packageConfigProf mempty
     <*> optionalFieldDef "library-profiling" L.packageConfigProfLib mempty
     <*> optionalFieldDef "executable-profiling" L.packageConfigProfExe mempty
     <*> optionalFieldDef "profiling-detail" L.packageConfigProfDetail mempty
@@ -163,8 +163,8 @@ packageConfigFieldGrammar =
     <*> optionalFieldDefAla "haddock-lib" (alaFlag Token) L.packageConfigHaddockLib mempty
     <*> optionalFieldDefAla "haddock-output-dir" (alaFlag FilePathNT) L.packageConfigHaddockOutputDir mempty
     <*> optionalFieldDef "haddock-for-hackage" L.packageConfigHaddockForHackage mempty
-    <*> optionalFieldDef "human-log" L.packageConfigTestHumanLog mempty
-    <*> optionalFieldDef "machine-log" L.packageConfigTestMachineLog mempty
+    <*> optionalFieldDef "test-log" L.packageConfigTestHumanLog mempty
+    <*> optionalFieldDef "test-machine-log" L.packageConfigTestMachineLog mempty
     <*> optionalFieldDef "test-show-details" L.packageConfigTestShowDetails mempty
     <*> optionalFieldDef "test-keep-tix-files" L.packageConfigTestKeepTix mempty
     <*> optionalFieldDefAla "test-wrapper" (alaFlag FilePathNT) L.packageConfigTestWrapper mempty
