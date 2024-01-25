@@ -23,7 +23,7 @@ import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
-import Distribution.Client.ProjectConfig.FieldGrammar (projectConfigFieldGrammar)
+import Distribution.Client.ProjectConfig.FieldGrammar (packageConfigFieldGrammar, projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigImport, ProjectConfigSkeleton)
 import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..))
@@ -32,16 +32,17 @@ import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 
 -- AST type
-import Distribution.Fields (Field, FieldLine, FieldName, Name (..), readFields')
+import Distribution.Fields (Field, FieldLine, FieldName, Name (..), SectionArg (..), readFields')
 import Distribution.Fields.LexerMonad (LexWarning, toPWarnings)
 import Distribution.PackageDescription.Quirks (patchQuirks)
-import Distribution.Parsec (CabalParsing, ParsecParser, explicitEitherParsec, parsec, parsecFilePath, parsecToken, runParsecParser, simpleParsecBS)
+import Distribution.Parsec (CabalParsing, ParsecParser, explicitEitherParsec, parsec, parsecFilePath, parsecToken, runParsecParser, simpleParsec, simpleParsecBS)
 import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
 import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, knownPrograms, lookupKnownProgram)
 import Distribution.Simple.Program.Types (programName)
 import Distribution.Types.CondTree (CondBranch (..), CondTree (..))
 import Distribution.Types.ConfVar (ConfVar (..))
+import Distribution.Types.PackageName (PackageName)
 import Distribution.Utils.Generic (breakMaybe, fromUTF8BS, toUTF8BS, unfoldrM, validateUTF8)
 
 import qualified Data.ByteString as BS
@@ -129,10 +130,38 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       opts <- lift $ parseProgramPaths programDb fields
       stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramPaths = opts})
       unless (null sections) (warnInvalidSubsection pos name)
+  | name == "package" = do
+      package <- lift $ parsePackageName pos args
+      case package of
+        Just AllPackages -> do
+          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
+          stateConfig . L.projectConfigAllPackages .= pkgCfg
+        Just (SpecificPackage packageName) -> do
+          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
+          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> (MapMappend $ Map.singleton packageName pkgCfg))
+        Nothing -> return ()
+      unless (null sections) (warnInvalidSubsection pos name)
   | otherwise = do
       warnInvalidSubsection pos name
   where
     (fields, sections) = partitionFields secFields
+
+data PackageConfigTarget = AllPackages | SpecificPackage PackageName
+
+-- TODO what happens when package * is used more than once? maybe emit "warning, not more than once?" what happens atm?
+parsePackageName :: Position -> [SectionArg Position] -> ParseResult (Maybe PackageConfigTarget)
+parsePackageName pos args = case args of
+  [SecArgName _ secName] -> parseName secName
+  [SecArgStr _ secName] -> parseName secName
+  _ -> do
+    parseWarning pos PWTUnknownSection "target package name or * required"
+    return Nothing
+  where
+    parseName secName = case runParsecParser parser "<parsePackageName>" (fieldLineStreamFromBS secName) of
+      Left _ -> return Nothing
+      Right cfgTarget -> return $ pure cfgTarget
+    parser :: ParsecParser PackageConfigTarget
+    parser = P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec] -- parse * or parsec :: m PackageName
 
 warnInvalidSubsection pos name = lift $ parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
 
@@ -196,11 +225,11 @@ readProgramName suffix programDb fieldName =
   parseProgramName suffix fieldName >>= ((flip lookupKnownProgram) programDb) >>= pure . programName
 
 parseProgramName :: FieldSuffix -> FieldName -> Maybe String
-parseProgramName suffix fieldName = case runParsecParser parser' "<parseProgramName>" fieldNameStream of
+parseProgramName suffix fieldName = case runParsecParser parser "<parseProgramName>" fieldNameStream of
   Left _ -> Nothing
   Right str -> Just str
   where
-    parser' = P.manyTill P.anyChar (P.try ((P.string suffix)) <* P.eof)
+    parser = P.manyTill P.anyChar (P.try ((P.string suffix)) <* P.eof)
     fieldNameStream = fieldLineStreamFromBS fieldName
 
 -- | Issue a 'PWTUnknownField' warning at all occurrences of a field.

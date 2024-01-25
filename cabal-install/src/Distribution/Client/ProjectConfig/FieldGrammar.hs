@@ -3,6 +3,7 @@
 -- | 'ProjectConfig' Field descriptions
 module Distribution.Client.ProjectConfig.FieldGrammar
   ( projectConfigFieldGrammar
+  , packageConfigFieldGrammar
   ) where
 
 import qualified Data.Set as Set
