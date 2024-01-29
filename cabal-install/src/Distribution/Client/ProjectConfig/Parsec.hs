@@ -98,10 +98,10 @@ parseCondTree programDb source fields0 = do
   -- TODO parse conditionals
   return configSkeleton
 
--- Monad in which sections are parsed
+-- | Monad in which sections are parsed
 type SectionParser = StateT SectionS ParseResult
 
--- | State of section parser
+-- | State of 'SectionParser'
 newtype SectionS = SectionS
   { _stateConfig :: ProjectConfig
   }
@@ -153,6 +153,7 @@ parsePackageName :: Position -> [SectionArg Position] -> ParseResult (Maybe Pack
 parsePackageName pos args = case args of
   [SecArgName _ secName] -> parseName secName
   [SecArgStr _ secName] -> parseName secName
+  [SecArgOther _ secName] -> parseName secName
   _ -> do
     parseWarning pos PWTUnknownSection "target package name or * required"
     return Nothing
@@ -161,7 +162,8 @@ parsePackageName pos args = case args of
       Left _ -> return Nothing
       Right cfgTarget -> return $ pure cfgTarget
     parser :: ParsecParser PackageConfigTarget
-    parser = P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec] -- parse * or parsec :: m PackageName
+    parser =
+      P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
 
 warnInvalidSubsection pos name = lift $ parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
 

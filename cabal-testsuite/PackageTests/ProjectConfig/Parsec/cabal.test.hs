@@ -53,6 +53,8 @@ main = do
   cabalTest' "read project-config-shared" testProjectConfigShared
   cabalTest' "set explicit provenance" testProjectConfigProvenance
   cabalTest' "read project-config-local-packages" testProjectConfigLocalPackages
+  cabalTest' "read project-config-all-packages" testProjectConfigAllPackages
+  cabalTest' "read project-config-specific-packages" testProjectConfigSpecificPackages
 
 testPackages :: TestM ()
 testPackages = do
@@ -278,6 +280,46 @@ testProjectConfigLocalPackages = do
     packageConfigTestFailWhenNoTestSuites = Flag True
     packageConfigTestTestOptions = [toPathTemplate "--some-option", toPathTemplate "42"]
     packageConfigBenchmarkOptions = [toPathTemplate "--some-benchmark-option", toPathTemplate "--another-option"]
+
+testProjectConfigAllPackages :: TestM ()
+testProjectConfigAllPackages = do
+  let rootFp = "project-config-all-packages"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigAllPackages . condTreeData)
+  where
+    expected :: PackageConfig
+    expected =
+      mempty
+        { packageConfigProfDetail = Flag ProfDetailAllFunctions
+        , packageConfigProfLibDetail = Flag ProfDetailExportedFunctions
+        }
+
+testProjectConfigSpecificPackages :: TestM ()
+testProjectConfigSpecificPackages = do
+  let rootFp = "project-config-specific-packages"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigSpecificPackage . condTreeData)
+  where
+    expected = MapMappend $ Map.fromList [("foo", expectedFoo), ("bar", expectedBar), ("baz", expectedBaz)]
+    expectedFoo :: PackageConfig
+    expectedFoo =
+      mempty
+        { packageConfigProfDetail = Flag ProfDetailAllFunctions
+        , packageConfigProfLibDetail = Flag ProfDetailExportedFunctions
+        , packageConfigVanillaLib = Flag True
+        }
+    expectedBar :: PackageConfig
+    expectedBar =
+      mempty
+        { packageConfigProfDetail = Flag ProfDetailTopLate
+        , packageConfigProfLibDetail = Flag ProfDetailNone
+        , packageConfigProgPrefix = Flag $ toPathTemplate "prefix/path"
+        }
+    expectedBaz :: PackageConfig
+    expectedBaz =
+      mempty
+        { packageConfigSharedLib = Flag True
+        }
 
 readConfigDefault :: FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)
 readConfigDefault testSubDir = readConfig testSubDir "cabal.project"
