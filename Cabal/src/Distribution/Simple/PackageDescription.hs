@@ -17,6 +17,7 @@ module Distribution.Simple.PackageDescription
     -- * Utility Parsing function
   , parseString
   , readAndParseFile
+  , flattenDups
   ) where
 
 import Distribution.Compat.Prelude

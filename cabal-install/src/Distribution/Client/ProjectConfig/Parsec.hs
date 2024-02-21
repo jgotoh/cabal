@@ -12,27 +12,33 @@ module Distribution.Client.ProjectConfig.Parsec
   , runParseResult
   ) where
 
+import Network.URI (URI (..), parseURI)
+
 import Control.Monad.State.Strict (StateT, execStateT, lift, modify)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Distribution.CabalSpecVersion
+import Distribution.Client.HttpUtils
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.FieldGrammar.Parsec (NamelessField (..), namelessFieldAnn)
+import Distribution.Fields.ConfVar (parseConditionConfVarFromClause)
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
+import Distribution.Verbosity
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (packageConfigFieldGrammar, projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigImport, ProjectConfigSkeleton)
 import qualified Distribution.Client.ProjectConfig.Lens as L
-import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..))
+import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..), ProjectConfigShared (..))
 import Distribution.Client.Types.SourceRepo (SourceRepoList, sourceRepositoryPackageGrammar)
 import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 
 -- AST type
-import Distribution.Fields (Field, FieldLine, FieldName, Name (..), SectionArg (..), readFields')
+import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), SectionArg (..), readFields')
 import Distribution.Fields.LexerMonad (LexWarning, toPWarnings)
 import Distribution.PackageDescription.Quirks (patchQuirks)
 import Distribution.Parsec (CabalParsing, ParsecParser, explicitEitherParsec, parsec, parsecFilePath, parsecToken, runParsecParser, simpleParsec, simpleParsecBS)
@@ -40,18 +46,21 @@ import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
 import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, knownPrograms, lookupKnownProgram)
 import Distribution.Simple.Program.Types (programName)
-import Distribution.Types.CondTree (CondBranch (..), CondTree (..))
+import Distribution.Simple.Setup (Flag (..))
+import Distribution.Types.CondTree (CondBranch (..), CondTree (..), traverseCondTreeC)
 import Distribution.Types.ConfVar (ConfVar (..))
 import Distribution.Types.PackageName (PackageName)
 import Distribution.Utils.Generic (breakMaybe, fromUTF8BS, toUTF8BS, unfoldrM, validateUTF8)
 
 import qualified Data.ByteString as BS
 import qualified Distribution.Compat.CharParsing as P
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath (isAbsolute, isPathSeparator, makeValid, takeDirectory, (</>))
 import qualified Text.Parsec
 
 -- | Preprocess file and start parsing
-parseProjectSkeleton :: FilePath -> BS.ByteString -> ParseResult ProjectConfigSkeleton
-parseProjectSkeleton source bs = do
+parseProjectSkeleton' :: FilePath -> BS.ByteString -> ParseResult ProjectConfigSkeleton
+parseProjectSkeleton' source bs = do
   case readFields' bs' of
     Right (fs, lexWarnings) -> do
       parseWarnings (toPWarnings lexWarnings)
@@ -77,9 +86,117 @@ newtype Conditional ann = Conditional [Section ann]
 
 -- | Separate valid conditional blocks from other sections so
 -- all conditionals form their own groups.
--- TODO implement
 partitionConditionals :: [[Section ann]] -> ([Section ann], [Conditional ann])
 partitionConditionals sections = (concat sections, [])
+
+projectSkeletonImports :: ProjectConfigSkeleton -> [ProjectConfigImport]
+projectSkeletonImports = view traverseCondTreeC
+
+singletonProjectConfigSkeleton :: ProjectConfig -> ProjectConfigSkeleton
+singletonProjectConfigSkeleton x = CondNode x mempty mempty
+
+readPreprocessFields :: BS.ByteString -> ParseResult [Field Position]
+readPreprocessFields bs = do
+  case readFields' bs' of
+    Right (fs, lexWarnings) -> do
+      parseWarnings (toPWarnings lexWarnings)
+      for_ invalidUtf8 $ \pos ->
+        parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
+      return fs
+    Left perr -> parseFatalFailure pos (show perr)
+      where
+        ppos = Text.Parsec.errorPos perr
+        pos = Position (Text.Parsec.sourceLine ppos) (Text.Parsec.sourceColumn ppos)
+  where
+    invalidUtf8 = validateUTF8 bs
+    bs' = case invalidUtf8 of
+      Nothing -> bs
+      Just _ -> toUTF8BS (fromUTF8BS bs)
+
+parseProjectSkeleton :: FilePath -> HttpTransport -> Verbosity -> [ProjectConfigImport] -> FilePath -> BS.ByteString -> IO (ParseResult ProjectConfigSkeleton)
+parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (sanityWalkPCS False =<<) <$> liftPR (go []) (readPreprocessFields bs) -- (ParseUtils.readFields bs)
+  where
+    go :: [Field Position] -> [Field Position] -> IO (ParseResult ProjectConfigSkeleton)
+    go acc (x : xs) = case x of
+      (Field (Name pos name) importLines) | name == "import" -> do
+        liftPR
+          ( \importLoc -> do
+              if (importLoc `elem` seenImports)
+                then pure $ parseFatalFailure pos ("cyclical import of " ++ importLoc)
+                else do
+                  let fs = fmap (\z -> CondNode z [importLoc] mempty) $ fieldsToConfig (reverse acc)
+                  res <- parseProjectSkeleton cacheDir httpTransport verbosity (importLoc : seenImports) importLoc =<< fetchImportConfig importLoc
+                  rest <- go [] xs
+                  pure . fmap mconcat . sequence $ [fs, res, rest]
+          )
+          (parseImport pos importLines)
+      (Section (Name pos name) args xs') | name == "if" -> do
+        subpcs <- go [] xs'
+        let fs = fmap singletonProjectConfigSkeleton $ fieldsToConfig (reverse acc)
+        (elseClauses, rest) <- parseElseClauses xs
+        let condNode =
+              (\c pcs e -> CondNode mempty mempty [CondBranch c pcs e])
+                <$> parseConditionConfVar args
+                <*> subpcs
+                <*> elseClauses
+        pure . fmap mconcat . sequence $ [fs, condNode, rest]
+      _ -> go (x : acc) xs
+    go acc [] = pure . fmap singletonProjectConfigSkeleton . fieldsToConfig $ reverse acc
+
+    parseElseClauses :: [Field Position] -> IO (ParseResult (Maybe ProjectConfigSkeleton), ParseResult ProjectConfigSkeleton)
+    parseElseClauses x = case x of
+      (Section (Name pos name) _args xs' : xs) | name == "else" -> do
+        subpcs <- go [] xs'
+        rest <- go [] xs
+        pure (Just <$> subpcs, rest)
+      (Section (Name pos name) args xs' : xs) | name == "elif" -> do
+        subpcs <- go [] xs'
+        (elseClauses, rest) <- parseElseClauses xs
+        let condNode =
+              (\c pcs e -> CondNode mempty mempty [CondBranch c pcs e])
+                <$> parseConditionConfVar args
+                <*> subpcs
+                <*> elseClauses
+        pure (Just <$> condNode, rest)
+      _ -> (\r -> (pure Nothing, r)) <$> go [] x
+
+    -- TODO for multiple lines the legacy parser just took a concatenated version of all lines
+    parseImport :: Position -> [FieldLine Position] -> ParseResult (ProjectConfigImport)
+    parseImport pos lines = runFieldParser pos (P.many P.anyChar) cabalSpec lines
+
+    -- TODO emit unrecognized field warning on unknown fields, legacy parser does this
+    fieldsToConfig :: [Field Position] -> ParseResult ProjectConfig
+    fieldsToConfig xs = do
+      let (fs, sectionGroups) = partitionFields xs
+          (sections, conditionals) = partitionConditionals sectionGroups
+          msg = show sectionGroups
+      config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source)
+      config' <- view stateConfig <$> execStateT (goSections defaultProgramDb sections) (SectionS config)
+      return config'
+
+    fetchImportConfig :: ProjectConfigImport -> IO BS.ByteString
+    fetchImportConfig pci = case parseURI pci of
+      Just uri -> do
+        let fp = cacheDir </> map (\x -> if isPathSeparator x then '_' else x) (makeValid $ show uri)
+        createDirectoryIfMissing True cacheDir
+        _ <- downloadURI httpTransport verbosity uri fp
+        BS.readFile fp
+      Nothing ->
+        BS.readFile $
+          if isAbsolute pci then pci else takeDirectory source </> pci
+
+    modifiesCompiler :: ProjectConfig -> Bool
+    modifiesCompiler pc = isSet projectConfigHcFlavor || isSet projectConfigHcPath || isSet projectConfigHcPkg
+      where
+        isSet f = f (projectConfigShared pc) /= NoFlag
+
+    sanityWalkPCS :: Bool -> ProjectConfigSkeleton -> ParseResult ProjectConfigSkeleton
+    sanityWalkPCS underConditional t@(CondNode d _c comps)
+      | underConditional && modifiesCompiler d = parseFatalFailure zeroPos "Cannot set compiler in a conditional clause of a cabal project file"
+      | otherwise = mapM_ sanityWalkBranch comps >> pure t
+
+    sanityWalkBranch :: CondBranch ConfVar [ProjectConfigImport] ProjectConfig -> ParseResult ()
+    sanityWalkBranch (CondBranch _c t f) = traverse (sanityWalkPCS True) f >> sanityWalkPCS True t >> pure ()
 
 parseCondTree
   :: ProgramDb

@@ -47,7 +47,7 @@ formatPackageVersionConstraints = alaList CommaVCat
 projectConfigBuildOnlyFieldGrammar :: ParsecFieldGrammar' ProjectConfigBuildOnly
 projectConfigBuildOnlyFieldGrammar =
   ProjectConfigBuildOnly
-    <$> optionalFieldDef "verbose" L.projectConfigVerbosity (pure normal)
+    <$> optionalFieldDef "verbose" L.projectConfigVerbosity mempty
     <*> pure mempty -- cli flag: projectConfigDryRun
     <*> pure mempty -- cli flag: projectConfigOnlyDeps
     <*> pure mempty -- cli flag: projectConfigOnlyDownload

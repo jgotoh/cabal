@@ -78,6 +78,7 @@ import Distribution.Client.VCS
   , validateSourceRepos
   )
 
+import GHC.Stack (CallStack, HasCallStack, callStack)
 import Distribution.Client.BuildReports.Types
   ( ReportLevel (..)
   )
@@ -104,7 +105,8 @@ import Distribution.Client.HttpUtils
 import Distribution.Client.Types
 import Distribution.Client.Utils.Parsec (renderParseError)
 
-import Distribution.Simple.PackageDescription (readAndParseFile)
+import Distribution.Simple.Errors
+import Distribution.Simple.PackageDescription (flattenDups)
 
 import Distribution.Solver.Types.PackageConstraint
   ( PackageProperty (..)
@@ -136,6 +138,7 @@ import Distribution.Fields
   ( PError
   , PWarning
   , runParseResult
+  , showPError
   , showPWarning
   )
 import Distribution.Package
@@ -742,26 +745,60 @@ readProjectLocalFreezeConfig verbosity httpTransport distDirLayout =
     "project freeze file"
 
 -- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
-readProjectFileSkeleton :: Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton
+readProjectFileSkeleton :: HasCallStack => Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton
 readProjectFileSkeleton
   verbosity
   httpTransport
   DistDirLayout{distProjectFile, distDownloadSrcDirectory}
   extensionName
   extensionDescription = do
+    legacyPcs <- readProjectFileSkeletonLegacy verbosity httpTransport DistDirLayout{distProjectFile, distDownloadSrcDirectory} extensionName extensionDescription
     exists <- liftIO $ doesFileExist extensionFile
     if exists
       then do
         monitorFiles [monitorFileHashed extensionFile]
         pcs <- liftIO $ readExtensionFile verbosity extensionFile
         monitorFiles $ map monitorFileHashed (projectSkeletonImports pcs)
+        unless (legacyPcs == pcs) (error (show callStack ++ "\nParsec: " ++ show pcs ++ "\nLegacy: " ++ show legacyPcs))
         pure pcs
       else do
         monitorFiles [monitorNonExistentFile extensionFile]
         return mempty
     where
       extensionFile = distProjectFile extensionName
-      readExtensionFile verbosity file = readAndParseFile (Parsec.parseProjectSkeleton file) verbosity file
+      readExtensionFile :: Verbosity -> FilePath -> IO ProjectConfigSkeleton
+      readExtensionFile verbosity file = readAndParseFile (\bs -> Parsec.parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile bs) verbosity file
+
+readAndParseFile
+  :: (BS.ByteString -> IO (Parsec.ParseResult a))
+  -> Verbosity
+  -> FilePath
+  -> IO a
+readAndParseFile parser verbosity fpath = do
+  exists <- doesFileExist fpath
+  unless exists $
+    dieWithException verbosity $
+      ErrorParsingFileDoesntExist fpath
+  bs <- BS.readFile fpath
+  parseString parser verbosity fpath bs
+
+parseString
+  :: ( BS.ByteString
+       -> IO (Parsec.ParseResult a)
+     )
+  -> Verbosity
+  -> FilePath
+  -> BS.ByteString
+  -> IO a
+parseString parser verbosity name bs = do
+  pr <- parser bs
+  let (warnings, result) = runParseResult pr
+  traverse_ (warn verbosity . showPWarning name) (flattenDups verbosity warnings)
+  case result of
+    Right x -> return x
+    Left (_, errors) -> do
+      traverse_ (warn verbosity . showPError name) errors
+      dieWithException verbosity $ FailedParsing name
 
 -- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
 readProjectFileSkeletonLegacy :: Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton

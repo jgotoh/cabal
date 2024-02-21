@@ -329,14 +329,13 @@ readConfig testSubDir projectFileName = do
   (TestDir testRootFp projectConfigFp distDirLayout) <- testDirInfo testSubDir projectFileName
   exists <- liftIO $ doesFileExist projectConfigFp
   assertBool ("projectConfig does not exist: " <> projectConfigFp) exists
-
-  contents <- liftIO $ BS.readFile projectConfigFp
-  let (_, res) = runParseResult $ parseProjectSkeleton projectConfigFp contents
-  assertBool ("Did not parse successfully: " ++ show res) $ isRight res
-  let parsec = fromRight undefined res
   httpTransport <- liftIO $ configureTransport verbosity [] Nothing
   let extensionName = ""
       extensionDescription = ""
+  parsec <-
+    liftIO $
+      runRebuild testRootFp $
+        readProjectFileSkeleton verbosity httpTransport distDirLayout extensionName extensionDescription
   legacy <-
     liftIO $
       runRebuild testRootFp $
