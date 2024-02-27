@@ -26,7 +26,7 @@ import Distribution.Simple.Flag
 import Distribution.Simple.InstallDirs (toPathTemplate)
 import Distribution.Simple.Setup (DumpBuildInfo (..), Flag, HaddockTarget (..), TestShowDetails (..))
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
-import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
+import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), OnlyConstrained (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
 import Distribution.Types.CondTree (CondTree (..))
 import Distribution.Types.Flag (FlagAssignment (..), FlagName, mkFlagAssignment)
 import Distribution.Types.PackageId (PackageIdentifier (..))
@@ -181,7 +181,7 @@ testProjectConfigShared = do
     projectConfigMinimizeConflictSet = Flag (MinimizeConflictSet True)
     projectConfigStrongFlags = Flag (StrongFlags True)
     projectConfigAllowBootLibInstalls = Flag (AllowBootLibInstalls True)
-    projectConfigOnlyConstrained = mempty -- cli only
+    projectConfigOnlyConstrained = Flag OnlyConstrainedAll
     projectConfigPerComponent = mempty -- cli only
     projectConfigIndependentGoals = mempty -- cli only
     projectConfigPreferOldest = Flag (PreferOldest True)

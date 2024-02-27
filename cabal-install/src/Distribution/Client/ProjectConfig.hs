@@ -10,7 +10,7 @@ module Distribution.Client.ProjectConfig
     ProjectConfig (..)
   , ProjectConfigBuildOnly (..)
   , ProjectConfigShared (..)
-  , ProjectConfigSkeleton (..)
+  , ProjectConfigSkeleton
   , ProjectConfigProvenance (..)
   , PackageConfig (..)
   , MapLast (..)
@@ -78,7 +78,7 @@ import Distribution.Client.VCS
   , validateSourceRepos
   )
 
-import GHC.Stack (CallStack, HasCallStack, callStack)
+import GHC.Stack (HasCallStack, callStack)
 import Distribution.Client.BuildReports.Types
   ( ReportLevel (..)
   )
@@ -749,10 +749,10 @@ readProjectFileSkeleton :: HasCallStack => Verbosity -> HttpTransport -> DistDir
 readProjectFileSkeleton
   verbosity
   httpTransport
-  DistDirLayout{distProjectFile, distDownloadSrcDirectory}
+  dir@DistDirLayout{distProjectFile, distDownloadSrcDirectory}
   extensionName
   extensionDescription = do
-    legacyPcs <- readProjectFileSkeletonLegacy verbosity httpTransport DistDirLayout{distProjectFile, distDownloadSrcDirectory} extensionName extensionDescription
+    legacyPcs <- readProjectFileSkeletonLegacy verbosity httpTransport dir extensionName extensionDescription
     exists <- liftIO $ doesFileExist extensionFile
     if exists
       then do
@@ -767,7 +767,7 @@ readProjectFileSkeleton
     where
       extensionFile = distProjectFile extensionName
       readExtensionFile :: Verbosity -> FilePath -> IO ProjectConfigSkeleton
-      readExtensionFile verbosity file = readAndParseFile (\bs -> Parsec.parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity [] extensionFile bs) verbosity file
+      readExtensionFile verbosity' file = readAndParseFile (\bs -> Parsec.parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity' [] extensionFile bs) verbosity' file
 
 readAndParseFile
   :: (BS.ByteString -> IO (Parsec.ParseResult a))

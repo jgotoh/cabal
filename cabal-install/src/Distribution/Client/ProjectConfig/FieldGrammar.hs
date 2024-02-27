@@ -14,13 +14,13 @@ import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
-import Distribution.Verbosity
 
 -- TODO check usages of monoidalField: "Field which can be define multiple times, and the results are mappended."
 -- I've used it often for fields that should not be appended if defined multiple times, basically any field that is not a list
 -- I expect I can just use optionalFieldDef/Ala in these cases, see optionalFieldDefAla "haddock-css"
 -- TODO check if ^^^ availableSince can be used in some of the fields (see FieldGrammar of PackageDescription)
 
+-- TODO ParsecFieldGrammar' is a Grammar implementation, we should just use abstract FieldGrammar here
 projectConfigFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source =
   ProjectConfig
@@ -38,7 +38,6 @@ projectConfigFieldGrammar source =
     <*> pure mempty
   where
     -- \^ PackageConfig applied to explicitly named packages
-
     provenance = Set.singleton (Explicit source)
 
 formatPackageVersionConstraints :: [PackageVersionConstraint] -> List CommaVCat (Identity PackageVersionConstraint) PackageVersionConstraint
@@ -101,7 +100,7 @@ projectConfigSharedFieldGrammar source =
     <*> monoidalField "minimize-conflict-set" L.projectConfigMinimizeConflictSet
     <*> monoidalField "strong-flags" L.projectConfigStrongFlags
     <*> monoidalField "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls
-    <*> pure mempty -- cli flag: projectConfigOnlyConstrained
+    <*> optionalFieldDef "reject-unconstrained-dependencies" L.projectConfigOnlyConstrained mempty
     <*> pure mempty -- cli flag: projectConfigPerComponent
     <*> pure mempty -- cli flag: projectConfigIndependentGoals
     <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest

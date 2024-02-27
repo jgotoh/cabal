@@ -36,7 +36,7 @@ import Distribution.Simple.Setup
   , TestShowDetails (..)
   )
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
-import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
+import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..), OnlyConstrained (..))
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )
@@ -229,6 +229,10 @@ projectConfigStrongFlags f s = fmap (\x -> s{T.projectConfigStrongFlags = x}) (f
 projectConfigAllowBootLibInstalls :: Lens' ProjectConfigShared (Flag AllowBootLibInstalls)
 projectConfigAllowBootLibInstalls f s = fmap (\x -> s{T.projectConfigAllowBootLibInstalls = x}) (f (T.projectConfigAllowBootLibInstalls s))
 {-# INLINEABLE projectConfigAllowBootLibInstalls #-}
+
+projectConfigOnlyConstrained :: Lens' ProjectConfigShared (Flag OnlyConstrained)
+projectConfigOnlyConstrained f s = fmap (\x -> s{T.projectConfigOnlyConstrained = x}) (f (T.projectConfigOnlyConstrained s))
+{-# INLINEABLE projectConfigOnlyConstrained #-}
 
 projectConfigPreferOldest :: Lens' ProjectConfigShared (Flag PreferOldest)
 projectConfigPreferOldest f s = fmap (\x -> s{T.projectConfigPreferOldest = x}) (f (T.projectConfigPreferOldest s))

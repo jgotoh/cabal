@@ -26,6 +26,7 @@ fine-grained-conflicts: False
 minimize-conflict-set: True
 strong-flags: True
 allow-boot-library-installs: True
+reject-unconstrained-dependencies: all
 prefer-oldest: True
 extra-prog-path: /foo/bar, /baz/quux
 multi-repl: True
