@@ -15,24 +15,19 @@ import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.Compiler (CompilerFlavor (..))
 import Distribution.Package
-  ( PackageId
-  , PackageName
-  , UnitId
+  ( PackageName
   )
 import Distribution.PackageDescription
   ( FlagAssignment
   )
 import Distribution.Simple.Compiler
-  ( Compiler
-  , CompilerFlavor
-  , DebugInfoLevel (..)
+  ( DebugInfoLevel (..)
   , OptimisationLevel (..)
   , PackageDB
   , ProfDetailLevel
   )
 import Distribution.Simple.InstallDirs
-  ( InstallDirs
-  , PathTemplate
+  ( PathTemplate
   )
 import Distribution.Simple.Setup
   ( DumpBuildInfo (..)
@@ -48,8 +43,6 @@ import Distribution.Types.PackageVersionConstraint
 import Distribution.Types.Version (Version)
 import Distribution.Utils.NubList
   ( NubList
-  , fromNubList
-  , toNubList
   )
 import Distribution.Verbosity
 
@@ -258,229 +251,229 @@ packageConfigFlagAssignment f s = fmap (\x -> s{T.packageConfigFlagAssignment = 
 {-# INLINEABLE packageConfigFlagAssignment #-}
 
 packageConfigVanillaLib :: Lens' PackageConfig (Flag Bool)
-packageConfigVanillaLib f s = fmap (\x -> s{T.packageConfigVanillaLib = x }) (f (T.packageConfigVanillaLib s))
+packageConfigVanillaLib f s = fmap (\x -> s{T.packageConfigVanillaLib = x}) (f (T.packageConfigVanillaLib s))
 {-# INLINEABLE packageConfigVanillaLib #-}
 
 packageConfigSharedLib :: Lens' PackageConfig (Flag Bool)
-packageConfigSharedLib f s = fmap (\x -> s{T.packageConfigSharedLib = x }) (f (T.packageConfigSharedLib s))
+packageConfigSharedLib f s = fmap (\x -> s{T.packageConfigSharedLib = x}) (f (T.packageConfigSharedLib s))
 {-# INLINEABLE packageConfigSharedLib #-}
 
 packageConfigStaticLib :: Lens' PackageConfig (Flag Bool)
-packageConfigStaticLib f s = fmap (\x -> s{T.packageConfigStaticLib = x }) (f (T.packageConfigStaticLib s))
+packageConfigStaticLib f s = fmap (\x -> s{T.packageConfigStaticLib = x}) (f (T.packageConfigStaticLib s))
 {-# INLINEABLE packageConfigStaticLib #-}
 
 packageConfigDynExe :: Lens' PackageConfig (Flag Bool)
-packageConfigDynExe f s = fmap (\x -> s{T.packageConfigDynExe = x }) (f (T.packageConfigDynExe s))
+packageConfigDynExe f s = fmap (\x -> s{T.packageConfigDynExe = x}) (f (T.packageConfigDynExe s))
 {-# INLINEABLE packageConfigDynExe #-}
 
 packageConfigFullyStaticExe :: Lens' PackageConfig (Flag Bool)
-packageConfigFullyStaticExe f s = fmap (\x -> s{T.packageConfigFullyStaticExe = x }) (f (T.packageConfigFullyStaticExe s))
+packageConfigFullyStaticExe f s = fmap (\x -> s{T.packageConfigFullyStaticExe = x}) (f (T.packageConfigFullyStaticExe s))
 {-# INLINEABLE packageConfigFullyStaticExe #-}
 
 packageConfigProf :: Lens' PackageConfig (Flag Bool)
-packageConfigProf f s = fmap (\x -> s{T.packageConfigProf = x }) (f (T.packageConfigProf s))
+packageConfigProf f s = fmap (\x -> s{T.packageConfigProf = x}) (f (T.packageConfigProf s))
 {-# INLINEABLE packageConfigProf #-}
 
 packageConfigProfLib :: Lens' PackageConfig (Flag Bool)
-packageConfigProfLib f s = fmap (\x -> s{T.packageConfigProfLib = x }) (f (T.packageConfigProfLib s))
+packageConfigProfLib f s = fmap (\x -> s{T.packageConfigProfLib = x}) (f (T.packageConfigProfLib s))
 {-# INLINEABLE packageConfigProfLib #-}
 
 packageConfigProfExe :: Lens' PackageConfig (Flag Bool)
-packageConfigProfExe f s = fmap (\x -> s{T.packageConfigProfExe = x }) (f (T.packageConfigProfExe s))
+packageConfigProfExe f s = fmap (\x -> s{T.packageConfigProfExe = x}) (f (T.packageConfigProfExe s))
 {-# INLINEABLE packageConfigProfExe #-}
 
 packageConfigProfDetail :: Lens' PackageConfig (Flag ProfDetailLevel)
-packageConfigProfDetail f s = fmap (\x -> s{T.packageConfigProfDetail = x }) (f (T.packageConfigProfDetail s))
+packageConfigProfDetail f s = fmap (\x -> s{T.packageConfigProfDetail = x}) (f (T.packageConfigProfDetail s))
 {-# INLINEABLE packageConfigProfDetail #-}
 
 packageConfigProfLibDetail :: Lens' PackageConfig (Flag ProfDetailLevel)
-packageConfigProfLibDetail f s = fmap (\x -> s{T.packageConfigProfLibDetail = x }) (f (T.packageConfigProfLibDetail s))
+packageConfigProfLibDetail f s = fmap (\x -> s{T.packageConfigProfLibDetail = x}) (f (T.packageConfigProfLibDetail s))
 {-# INLINEABLE packageConfigProfLibDetail #-}
 
 packageConfigConfigureArgs :: Lens' PackageConfig [String]
-packageConfigConfigureArgs f s = fmap (\x -> s{T.packageConfigConfigureArgs = x }) (f (T.packageConfigConfigureArgs s))
+packageConfigConfigureArgs f s = fmap (\x -> s{T.packageConfigConfigureArgs = x}) (f (T.packageConfigConfigureArgs s))
 {-# INLINEABLE packageConfigConfigureArgs #-}
 
 packageConfigOptimization :: Lens' PackageConfig (Flag OptimisationLevel)
-packageConfigOptimization f s = fmap (\x -> s{T.packageConfigOptimization = x }) (f (T.packageConfigOptimization s))
+packageConfigOptimization f s = fmap (\x -> s{T.packageConfigOptimization = x}) (f (T.packageConfigOptimization s))
 {-# INLINEABLE packageConfigOptimization #-}
 
 packageConfigProgPrefix :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigProgPrefix f s = fmap (\x -> s{T.packageConfigProgPrefix = x }) (f (T.packageConfigProgPrefix s))
+packageConfigProgPrefix f s = fmap (\x -> s{T.packageConfigProgPrefix = x}) (f (T.packageConfigProgPrefix s))
 {-# INLINEABLE packageConfigProgPrefix #-}
 
 packageConfigProgSuffix :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigProgSuffix f s = fmap (\x -> s{T.packageConfigProgSuffix = x }) (f (T.packageConfigProgSuffix s))
+packageConfigProgSuffix f s = fmap (\x -> s{T.packageConfigProgSuffix = x}) (f (T.packageConfigProgSuffix s))
 {-# INLINEABLE packageConfigProgSuffix #-}
 
 packageConfigExtraLibDirs :: Lens' PackageConfig [FilePath]
-packageConfigExtraLibDirs f s = fmap (\x -> s{T.packageConfigExtraLibDirs = x }) (f (T.packageConfigExtraLibDirs s))
+packageConfigExtraLibDirs f s = fmap (\x -> s{T.packageConfigExtraLibDirs = x}) (f (T.packageConfigExtraLibDirs s))
 {-# INLINEABLE packageConfigExtraLibDirs #-}
 
 packageConfigExtraLibDirsStatic :: Lens' PackageConfig [FilePath]
-packageConfigExtraLibDirsStatic f s = fmap (\x -> s{T.packageConfigExtraLibDirsStatic = x }) (f (T.packageConfigExtraLibDirsStatic s))
+packageConfigExtraLibDirsStatic f s = fmap (\x -> s{T.packageConfigExtraLibDirsStatic = x}) (f (T.packageConfigExtraLibDirsStatic s))
 {-# INLINEABLE packageConfigExtraLibDirsStatic #-}
 
 packageConfigExtraFrameworkDirs :: Lens' PackageConfig [FilePath]
-packageConfigExtraFrameworkDirs f s = fmap (\x -> s{T.packageConfigExtraFrameworkDirs = x }) (f (T.packageConfigExtraFrameworkDirs s))
+packageConfigExtraFrameworkDirs f s = fmap (\x -> s{T.packageConfigExtraFrameworkDirs = x}) (f (T.packageConfigExtraFrameworkDirs s))
 {-# INLINEABLE packageConfigExtraFrameworkDirs #-}
 
 packageConfigExtraIncludeDirs :: Lens' PackageConfig [FilePath]
-packageConfigExtraIncludeDirs f s = fmap (\x -> s{T.packageConfigExtraIncludeDirs = x }) (f (T.packageConfigExtraIncludeDirs s))
+packageConfigExtraIncludeDirs f s = fmap (\x -> s{T.packageConfigExtraIncludeDirs = x}) (f (T.packageConfigExtraIncludeDirs s))
 {-# INLINEABLE packageConfigExtraIncludeDirs #-}
 
 packageConfigGHCiLib :: Lens' PackageConfig (Flag Bool)
-packageConfigGHCiLib f s = fmap (\x -> s{T.packageConfigGHCiLib = x }) (f (T.packageConfigGHCiLib s))
+packageConfigGHCiLib f s = fmap (\x -> s{T.packageConfigGHCiLib = x}) (f (T.packageConfigGHCiLib s))
 {-# INLINEABLE packageConfigGHCiLib #-}
 
 packageConfigSplitSections :: Lens' PackageConfig (Flag Bool)
-packageConfigSplitSections f s = fmap (\x -> s{T.packageConfigSplitSections = x }) (f (T.packageConfigSplitSections s))
+packageConfigSplitSections f s = fmap (\x -> s{T.packageConfigSplitSections = x}) (f (T.packageConfigSplitSections s))
 {-# INLINEABLE packageConfigSplitSections #-}
 
 packageConfigSplitObjs :: Lens' PackageConfig (Flag Bool)
-packageConfigSplitObjs f s = fmap (\x -> s{T.packageConfigSplitObjs = x }) (f (T.packageConfigSplitObjs s))
+packageConfigSplitObjs f s = fmap (\x -> s{T.packageConfigSplitObjs = x}) (f (T.packageConfigSplitObjs s))
 {-# INLINEABLE packageConfigSplitObjs #-}
 
 packageConfigStripExes :: Lens' PackageConfig (Flag Bool)
-packageConfigStripExes f s = fmap (\x -> s{T.packageConfigStripExes = x }) (f (T.packageConfigStripExes s))
+packageConfigStripExes f s = fmap (\x -> s{T.packageConfigStripExes = x}) (f (T.packageConfigStripExes s))
 {-# INLINEABLE packageConfigStripExes #-}
 
 packageConfigStripLibs :: Lens' PackageConfig (Flag Bool)
-packageConfigStripLibs f s = fmap (\x -> s{T.packageConfigStripLibs = x }) (f (T.packageConfigStripLibs s))
+packageConfigStripLibs f s = fmap (\x -> s{T.packageConfigStripLibs = x}) (f (T.packageConfigStripLibs s))
 {-# INLINEABLE packageConfigStripLibs #-}
 
 packageConfigTests :: Lens' PackageConfig (Flag Bool)
-packageConfigTests f s = fmap (\x -> s{T.packageConfigTests = x }) (f (T.packageConfigTests s))
+packageConfigTests f s = fmap (\x -> s{T.packageConfigTests = x}) (f (T.packageConfigTests s))
 {-# INLINEABLE packageConfigTests #-}
 
 packageConfigBenchmarks :: Lens' PackageConfig (Flag Bool)
-packageConfigBenchmarks f s = fmap (\x -> s{T.packageConfigBenchmarks = x }) (f (T.packageConfigBenchmarks s))
+packageConfigBenchmarks f s = fmap (\x -> s{T.packageConfigBenchmarks = x}) (f (T.packageConfigBenchmarks s))
 {-# INLINEABLE packageConfigBenchmarks #-}
 
 packageConfigCoverage :: Lens' PackageConfig (Flag Bool)
-packageConfigCoverage f s = fmap (\x -> s{T.packageConfigCoverage = x }) (f (T.packageConfigCoverage s))
+packageConfigCoverage f s = fmap (\x -> s{T.packageConfigCoverage = x}) (f (T.packageConfigCoverage s))
 {-# INLINEABLE packageConfigCoverage #-}
 
 packageConfigRelocatable :: Lens' PackageConfig (Flag Bool)
-packageConfigRelocatable f s = fmap (\x -> s{T.packageConfigRelocatable = x }) (f (T.packageConfigRelocatable s))
+packageConfigRelocatable f s = fmap (\x -> s{T.packageConfigRelocatable = x}) (f (T.packageConfigRelocatable s))
 {-# INLINEABLE packageConfigRelocatable #-}
 
 packageConfigDebugInfo :: Lens' PackageConfig (Flag DebugInfoLevel)
-packageConfigDebugInfo f s = fmap (\x -> s{T.packageConfigDebugInfo = x }) (f (T.packageConfigDebugInfo s))
+packageConfigDebugInfo f s = fmap (\x -> s{T.packageConfigDebugInfo = x}) (f (T.packageConfigDebugInfo s))
 {-# INLINEABLE packageConfigDebugInfo #-}
 
 packageConfigDumpBuildInfo :: Lens' PackageConfig (Flag DumpBuildInfo)
-packageConfigDumpBuildInfo f s = fmap (\x -> s{T.packageConfigDumpBuildInfo = x }) (f (T.packageConfigDumpBuildInfo s))
+packageConfigDumpBuildInfo f s = fmap (\x -> s{T.packageConfigDumpBuildInfo = x}) (f (T.packageConfigDumpBuildInfo s))
 {-# INLINEABLE packageConfigDumpBuildInfo #-}
 
 packageConfigRunTests :: Lens' PackageConfig (Flag Bool)
-packageConfigRunTests f s = fmap (\x -> s{T.packageConfigRunTests = x }) (f (T.packageConfigRunTests s))
+packageConfigRunTests f s = fmap (\x -> s{T.packageConfigRunTests = x}) (f (T.packageConfigRunTests s))
 {-# INLINEABLE packageConfigRunTests #-}
 
 packageConfigDocumentation :: Lens' PackageConfig (Flag Bool)
-packageConfigDocumentation f s = fmap (\x -> s{T.packageConfigDocumentation = x }) (f (T.packageConfigDocumentation s))
+packageConfigDocumentation f s = fmap (\x -> s{T.packageConfigDocumentation = x}) (f (T.packageConfigDocumentation s))
 {-# INLINEABLE packageConfigDocumentation #-}
 
 packageConfigHaddockHoogle :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockHoogle f s = fmap (\x -> s{T.packageConfigHaddockHoogle = x }) (f (T.packageConfigHaddockHoogle s))
+packageConfigHaddockHoogle f s = fmap (\x -> s{T.packageConfigHaddockHoogle = x}) (f (T.packageConfigHaddockHoogle s))
 {-# INLINEABLE packageConfigHaddockHoogle #-}
 
 packageConfigHaddockHtml :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockHtml f s = fmap (\x -> s{T.packageConfigHaddockHtml = x }) (f (T.packageConfigHaddockHtml s))
+packageConfigHaddockHtml f s = fmap (\x -> s{T.packageConfigHaddockHtml = x}) (f (T.packageConfigHaddockHtml s))
 {-# INLINEABLE packageConfigHaddockHtml #-}
 
 packageConfigHaddockHtmlLocation :: Lens' PackageConfig (Flag String)
-packageConfigHaddockHtmlLocation f s = fmap (\x -> s{T.packageConfigHaddockHtmlLocation = x }) (f (T.packageConfigHaddockHtmlLocation s))
+packageConfigHaddockHtmlLocation f s = fmap (\x -> s{T.packageConfigHaddockHtmlLocation = x}) (f (T.packageConfigHaddockHtmlLocation s))
 {-# INLINEABLE packageConfigHaddockHtmlLocation #-}
 
 packageConfigHaddockForeignLibs :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockForeignLibs f s = fmap (\x -> s{T.packageConfigHaddockForeignLibs = x }) (f (T.packageConfigHaddockForeignLibs s))
+packageConfigHaddockForeignLibs f s = fmap (\x -> s{T.packageConfigHaddockForeignLibs = x}) (f (T.packageConfigHaddockForeignLibs s))
 {-# INLINEABLE packageConfigHaddockForeignLibs #-}
 
 packageConfigHaddockExecutables :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockExecutables f s = fmap (\x -> s{T.packageConfigHaddockExecutables = x }) (f (T.packageConfigHaddockExecutables s))
+packageConfigHaddockExecutables f s = fmap (\x -> s{T.packageConfigHaddockExecutables = x}) (f (T.packageConfigHaddockExecutables s))
 {-# INLINEABLE packageConfigHaddockExecutables #-}
 
 packageConfigHaddockTestSuites :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockTestSuites f s = fmap (\x -> s{T.packageConfigHaddockTestSuites = x }) (f (T.packageConfigHaddockTestSuites s))
+packageConfigHaddockTestSuites f s = fmap (\x -> s{T.packageConfigHaddockTestSuites = x}) (f (T.packageConfigHaddockTestSuites s))
 {-# INLINEABLE packageConfigHaddockTestSuites #-}
 
 packageConfigHaddockBenchmarks :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockBenchmarks f s = fmap (\x -> s{T.packageConfigHaddockBenchmarks = x }) (f (T.packageConfigHaddockBenchmarks s))
+packageConfigHaddockBenchmarks f s = fmap (\x -> s{T.packageConfigHaddockBenchmarks = x}) (f (T.packageConfigHaddockBenchmarks s))
 {-# INLINEABLE packageConfigHaddockBenchmarks #-}
 
 packageConfigHaddockInternal :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockInternal f s = fmap (\x -> s{T.packageConfigHaddockInternal = x }) (f (T.packageConfigHaddockInternal s))
+packageConfigHaddockInternal f s = fmap (\x -> s{T.packageConfigHaddockInternal = x}) (f (T.packageConfigHaddockInternal s))
 {-# INLINEABLE packageConfigHaddockInternal #-}
 
 packageConfigHaddockCss :: Lens' PackageConfig (Flag FilePath)
-packageConfigHaddockCss f s = fmap (\x -> s{T.packageConfigHaddockCss = x }) (f (T.packageConfigHaddockCss s))
+packageConfigHaddockCss f s = fmap (\x -> s{T.packageConfigHaddockCss = x}) (f (T.packageConfigHaddockCss s))
 {-# INLINEABLE packageConfigHaddockCss #-}
 
 packageConfigHaddockLinkedSource :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockLinkedSource f s = fmap (\x -> s{T.packageConfigHaddockLinkedSource = x }) (f (T.packageConfigHaddockLinkedSource s))
+packageConfigHaddockLinkedSource f s = fmap (\x -> s{T.packageConfigHaddockLinkedSource = x}) (f (T.packageConfigHaddockLinkedSource s))
 {-# INLINEABLE packageConfigHaddockLinkedSource #-}
 
 packageConfigHaddockQuickJump :: Lens' PackageConfig (Flag Bool)
-packageConfigHaddockQuickJump f s = fmap (\x -> s{T.packageConfigHaddockQuickJump = x }) (f (T.packageConfigHaddockQuickJump s))
+packageConfigHaddockQuickJump f s = fmap (\x -> s{T.packageConfigHaddockQuickJump = x}) (f (T.packageConfigHaddockQuickJump s))
 {-# INLINEABLE packageConfigHaddockQuickJump #-}
 
 packageConfigHaddockHscolourCss :: Lens' PackageConfig (Flag FilePath)
-packageConfigHaddockHscolourCss f s = fmap (\x -> s{T.packageConfigHaddockHscolourCss = x }) (f (T.packageConfigHaddockHscolourCss s))
+packageConfigHaddockHscolourCss f s = fmap (\x -> s{T.packageConfigHaddockHscolourCss = x}) (f (T.packageConfigHaddockHscolourCss s))
 {-# INLINEABLE packageConfigHaddockHscolourCss #-}
 
 packageConfigHaddockContents :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigHaddockContents f s = fmap (\x -> s{T.packageConfigHaddockContents = x }) (f (T.packageConfigHaddockContents s))
+packageConfigHaddockContents f s = fmap (\x -> s{T.packageConfigHaddockContents = x}) (f (T.packageConfigHaddockContents s))
 {-# INLINEABLE packageConfigHaddockContents #-}
 
 packageConfigHaddockIndex :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigHaddockIndex f s = fmap (\x -> s{T.packageConfigHaddockIndex = x }) (f (T.packageConfigHaddockIndex s))
+packageConfigHaddockIndex f s = fmap (\x -> s{T.packageConfigHaddockIndex = x}) (f (T.packageConfigHaddockIndex s))
 {-# INLINEABLE packageConfigHaddockIndex #-}
 
 packageConfigHaddockBaseUrl :: Lens' PackageConfig (Flag String)
-packageConfigHaddockBaseUrl f s = fmap (\x -> s{T.packageConfigHaddockBaseUrl = x }) (f (T.packageConfigHaddockBaseUrl s))
+packageConfigHaddockBaseUrl f s = fmap (\x -> s{T.packageConfigHaddockBaseUrl = x}) (f (T.packageConfigHaddockBaseUrl s))
 {-# INLINEABLE packageConfigHaddockBaseUrl #-}
 
 packageConfigHaddockLib :: Lens' PackageConfig (Flag String)
-packageConfigHaddockLib f s = fmap (\x -> s{T.packageConfigHaddockLib = x }) (f (T.packageConfigHaddockLib s))
+packageConfigHaddockLib f s = fmap (\x -> s{T.packageConfigHaddockLib = x}) (f (T.packageConfigHaddockLib s))
 {-# INLINEABLE packageConfigHaddockLib #-}
 
 packageConfigHaddockOutputDir :: Lens' PackageConfig (Flag FilePath)
-packageConfigHaddockOutputDir f s = fmap (\x -> s{T.packageConfigHaddockOutputDir = x }) (f (T.packageConfigHaddockOutputDir s))
+packageConfigHaddockOutputDir f s = fmap (\x -> s{T.packageConfigHaddockOutputDir = x}) (f (T.packageConfigHaddockOutputDir s))
 {-# INLINEABLE packageConfigHaddockOutputDir #-}
 
 packageConfigHaddockForHackage :: Lens' PackageConfig (Flag HaddockTarget)
-packageConfigHaddockForHackage f s = fmap (\x -> s{T.packageConfigHaddockForHackage = x }) (f (T.packageConfigHaddockForHackage s))
+packageConfigHaddockForHackage f s = fmap (\x -> s{T.packageConfigHaddockForHackage = x}) (f (T.packageConfigHaddockForHackage s))
 {-# INLINEABLE packageConfigHaddockForHackage #-}
 
 packageConfigTestHumanLog :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigTestHumanLog f s = fmap (\x -> s{T.packageConfigTestHumanLog = x }) (f (T.packageConfigTestHumanLog s))
+packageConfigTestHumanLog f s = fmap (\x -> s{T.packageConfigTestHumanLog = x}) (f (T.packageConfigTestHumanLog s))
 {-# INLINEABLE packageConfigTestHumanLog #-}
 
 packageConfigTestMachineLog :: Lens' PackageConfig (Flag PathTemplate)
-packageConfigTestMachineLog f s = fmap (\x -> s{T.packageConfigTestMachineLog = x }) (f (T.packageConfigTestMachineLog s))
+packageConfigTestMachineLog f s = fmap (\x -> s{T.packageConfigTestMachineLog = x}) (f (T.packageConfigTestMachineLog s))
 {-# INLINEABLE packageConfigTestMachineLog #-}
 
 packageConfigTestShowDetails :: Lens' PackageConfig (Flag TestShowDetails)
-packageConfigTestShowDetails f s = fmap (\x -> s{T.packageConfigTestShowDetails = x }) (f (T.packageConfigTestShowDetails s))
+packageConfigTestShowDetails f s = fmap (\x -> s{T.packageConfigTestShowDetails = x}) (f (T.packageConfigTestShowDetails s))
 {-# INLINEABLE packageConfigTestShowDetails #-}
 
 packageConfigTestKeepTix :: Lens' PackageConfig (Flag Bool)
-packageConfigTestKeepTix f s = fmap (\x -> s{T.packageConfigTestKeepTix = x }) (f (T.packageConfigTestKeepTix s))
+packageConfigTestKeepTix f s = fmap (\x -> s{T.packageConfigTestKeepTix = x}) (f (T.packageConfigTestKeepTix s))
 {-# INLINEABLE packageConfigTestKeepTix #-}
 
 packageConfigTestWrapper :: Lens' PackageConfig (Flag FilePath)
-packageConfigTestWrapper f s = fmap (\x -> s{T.packageConfigTestWrapper = x }) (f (T.packageConfigTestWrapper s))
+packageConfigTestWrapper f s = fmap (\x -> s{T.packageConfigTestWrapper = x}) (f (T.packageConfigTestWrapper s))
 {-# INLINEABLE packageConfigTestWrapper #-}
 
 packageConfigTestFailWhenNoTestSuites :: Lens' PackageConfig (Flag Bool)
-packageConfigTestFailWhenNoTestSuites f s = fmap (\x -> s{T.packageConfigTestFailWhenNoTestSuites = x }) (f (T.packageConfigTestFailWhenNoTestSuites s))
+packageConfigTestFailWhenNoTestSuites f s = fmap (\x -> s{T.packageConfigTestFailWhenNoTestSuites = x}) (f (T.packageConfigTestFailWhenNoTestSuites s))
 {-# INLINEABLE packageConfigTestFailWhenNoTestSuites #-}
 
 packageConfigTestTestOptions :: Lens' PackageConfig [PathTemplate]
-packageConfigTestTestOptions f s = fmap (\x -> s{T.packageConfigTestTestOptions = x }) (f (T.packageConfigTestTestOptions s))
+packageConfigTestTestOptions f s = fmap (\x -> s{T.packageConfigTestTestOptions = x}) (f (T.packageConfigTestTestOptions s))
 {-# INLINEABLE packageConfigTestTestOptions #-}
 
 packageConfigBenchmarkOptions :: Lens' PackageConfig [PathTemplate]
-packageConfigBenchmarkOptions f s = fmap (\x -> s{T.packageConfigBenchmarkOptions = x }) (f (T.packageConfigBenchmarkOptions s))
+packageConfigBenchmarkOptions f s = fmap (\x -> s{T.packageConfigBenchmarkOptions = x}) (f (T.packageConfigBenchmarkOptions s))
 {-# INLINEABLE packageConfigBenchmarkOptions #-}

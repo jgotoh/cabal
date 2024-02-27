@@ -12,20 +12,17 @@ module Distribution.Client.ProjectConfig.Parsec
   , runParseResult
   ) where
 
-import Network.URI (URI (..), parseURI)
+import Network.URI (parseURI)
 
-import Control.Monad.State.Strict (StateT, execStateT, lift, modify)
+import Control.Monad.State.Strict (StateT, execStateT, lift)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Distribution.CabalSpecVersion
 import Distribution.Client.HttpUtils
 import Distribution.Compat.Lens
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.FieldGrammar.Parsec (NamelessField (..), namelessFieldAnn)
-import Distribution.Fields.ConfVar (parseConditionConfVarFromClause)
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
-import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Verbosity
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
@@ -33,64 +30,29 @@ import Distribution.Client.ProjectConfig.FieldGrammar (packageConfigFieldGrammar
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigImport, ProjectConfigSkeleton)
 import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..), ProjectConfigShared (..))
-import Distribution.Client.Types.SourceRepo (SourceRepoList, sourceRepositoryPackageGrammar)
+import Distribution.Client.Types.SourceRepo (sourceRepositoryPackageGrammar)
 import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 
 -- AST type
 import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), SectionArg (..), readFields')
-import Distribution.Fields.LexerMonad (LexWarning, toPWarnings)
-import Distribution.PackageDescription.Quirks (patchQuirks)
-import Distribution.Parsec (CabalParsing, ParsecParser, explicitEitherParsec, parsec, parsecFilePath, parsecToken, runParsecParser, simpleParsec, simpleParsecBS)
+import Distribution.Fields.LexerMonad (toPWarnings)
+import Distribution.Parsec (CabalParsing, ParsecParser, parsec, parsecFilePath, parsecToken, runParsecParser)
 import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
-import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, knownPrograms, lookupKnownProgram)
+import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, lookupKnownProgram)
 import Distribution.Simple.Program.Types (programName)
 import Distribution.Simple.Setup (Flag (..))
-import Distribution.Types.CondTree (CondBranch (..), CondTree (..), traverseCondTreeC)
+import Distribution.Types.CondTree (CondBranch (..), CondTree (..))
 import Distribution.Types.ConfVar (ConfVar (..))
 import Distribution.Types.PackageName (PackageName)
-import Distribution.Utils.Generic (breakMaybe, fromUTF8BS, toUTF8BS, unfoldrM, validateUTF8)
+import Distribution.Utils.Generic (fromUTF8BS, toUTF8BS, validateUTF8)
 
 import qualified Data.ByteString as BS
 import qualified Distribution.Compat.CharParsing as P
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (isAbsolute, isPathSeparator, makeValid, takeDirectory, (</>))
 import qualified Text.Parsec
-
--- | Preprocess file and start parsing
-parseProjectSkeleton' :: FilePath -> BS.ByteString -> ParseResult ProjectConfigSkeleton
-parseProjectSkeleton' source bs = do
-  case readFields' bs' of
-    Right (fs, lexWarnings) -> do
-      parseWarnings (toPWarnings lexWarnings)
-      for_ invalidUtf8 $ \pos ->
-        parseWarning zeroPos PWTUTF $ "UTF8 encoding problem at byte offset " ++ show pos
-      parseCondTree programDb source fs
-    Left perr -> parseFatalFailure pos (show perr)
-      where
-        ppos = Text.Parsec.errorPos perr
-        pos = Position (Text.Parsec.sourceLine ppos) (Text.Parsec.sourceColumn ppos)
-  where
-    invalidUtf8 = validateUTF8 bs
-    bs' = case invalidUtf8 of
-      Nothing -> bs
-      Just _ -> toUTF8BS (fromUTF8BS bs)
-    -- TODO the legacy parser uses 'defaultProgramDb' in programLocationsFieldDescrs programOptionsFieldDescrs to parse the
-    -- progname-options/-locations fields, so I used this too instead of parameterizing it. Is this okay?
-    programDb = defaultProgramDb
-
--- List of conditional blocks
-newtype Conditional ann = Conditional [Section ann]
-  deriving (Eq, Show)
-
--- | Separate valid conditional blocks from other sections so
--- all conditionals form their own groups.
-partitionConditionals :: [[Section ann]] -> ([Section ann], [Conditional ann])
-partitionConditionals sections = (concat sections, [])
-
-projectSkeletonImports :: ProjectConfigSkeleton -> [ProjectConfigImport]
-projectSkeletonImports = view traverseCondTreeC
 
 singletonProjectConfigSkeleton :: ProjectConfig -> ProjectConfigSkeleton
 singletonProjectConfigSkeleton x = CondNode x mempty mempty
@@ -130,7 +92,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
                   pure . fmap mconcat . sequence $ [fs, res, rest]
           )
           (parseImport pos importLines)
-      (Section (Name pos name) args xs') | name == "if" -> do
+      (Section (Name _pos name) args xs') | name == "if" -> do
         subpcs <- go [] xs'
         let fs = fmap singletonProjectConfigSkeleton $ fieldsToConfig (reverse acc)
         (elseClauses, rest) <- parseElseClauses xs
@@ -145,11 +107,11 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
 
     parseElseClauses :: [Field Position] -> IO (ParseResult (Maybe ProjectConfigSkeleton), ParseResult ProjectConfigSkeleton)
     parseElseClauses x = case x of
-      (Section (Name pos name) _args xs' : xs) | name == "else" -> do
+      (Section (Name _pos name) _args xs' : xs) | name == "else" -> do
         subpcs <- go [] xs'
         rest <- go [] xs
         pure (Just <$> subpcs, rest)
-      (Section (Name pos name) args xs' : xs) | name == "elif" -> do
+      (Section (Name _pos name) args xs' : xs) | name == "elif" -> do
         subpcs <- go [] xs'
         (elseClauses, rest) <- parseElseClauses xs
         let condNode =
@@ -160,16 +122,14 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
         pure (Just <$> condNode, rest)
       _ -> (\r -> (pure Nothing, r)) <$> go [] x
 
-    -- TODO for multiple lines the legacy parser just took a concatenated version of all lines
     parseImport :: Position -> [FieldLine Position] -> ParseResult (ProjectConfigImport)
-    parseImport pos lines = runFieldParser pos (P.many P.anyChar) cabalSpec lines
+    parseImport pos lines' = runFieldParser pos (P.many P.anyChar) cabalSpec lines'
 
     -- TODO emit unrecognized field warning on unknown fields, legacy parser does this
     fieldsToConfig :: [Field Position] -> ParseResult ProjectConfig
     fieldsToConfig xs = do
       let (fs, sectionGroups) = partitionFields xs
-          (sections, conditionals) = partitionConditionals sectionGroups
-          msg = show sectionGroups
+          sections = concat sectionGroups
       config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source)
       config' <- view stateConfig <$> execStateT (goSections defaultProgramDb sections) (SectionS config)
       return config'
@@ -197,23 +157,6 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
 
     sanityWalkBranch :: CondBranch ConfVar [ProjectConfigImport] ProjectConfig -> ParseResult ()
     sanityWalkBranch (CondBranch _c t f) = traverse (sanityWalkPCS True) f >> sanityWalkPCS True t >> pure ()
-
-parseCondTree
-  :: ProgramDb
-  -> FilePath
-  -> [Field Position]
-  -> ParseResult ProjectConfigSkeleton
-parseCondTree programDb source fields0 = do
-  -- sectionGroups are groups of sections between fields
-  let (fs, sectionGroups) = partitionFields fields0
-      (sections, conditionals) = partitionConditionals sectionGroups
-      msg = show sectionGroups
-  imports <- parseImports fs
-  config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source)
-  config' <- view stateConfig <$> execStateT (goSections programDb sections) (SectionS config)
-  let configSkeleton = CondNode config' imports []
-  -- TODO parse conditionals
-  return configSkeleton
 
 -- | Monad in which sections are parsed
 type SectionParser = StateT SectionS ParseResult
@@ -262,6 +205,7 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       warnInvalidSubsection pos name
   where
     (fields, sections) = partitionFields secFields
+    warnInvalidSubsection pos' name' = lift $ parseWarning pos' PWTInvalidSubsection $ "PARSEC: invalid subsection " ++ show name'
 
 data PackageConfigTarget = AllPackages | SpecificPackage PackageName
 
@@ -282,11 +226,6 @@ parsePackageName pos args = case args of
     parser =
       P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
 
-warnInvalidSubsection pos name = lift $ parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
-
--- TODO implement, caution: check for cyclical imports
-parseImports :: Fields Position -> ParseResult [ProjectConfigImport]
-parseImports fs = return mempty
 
 -- | Parse fields of a program-options stanza.
 parseProgramArgs :: ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])
