@@ -198,7 +198,7 @@ parseSection programDb (MkSection (Name pos name) args secFields)
           stateConfig . L.projectConfigAllPackages .= pkgCfg
         Just (SpecificPackage packageName) -> do
           pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
-          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> (MapMappend $ Map.singleton packageName pkgCfg))
+          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName pkgCfg))
         Nothing -> return ()
       unless (null sections) (warnInvalidSubsection pos name)
   | otherwise = do
@@ -236,7 +236,7 @@ parseProgramArgs programDb fields = foldM parseField mempty (Map.toList fields)
         Nothing -> warnUnknownFields fieldName fieldValues >> return accum
         Just program -> do
           args <- parseProgramArgsField fieldValues
-          return $ accum <> (MapMappend $ Map.singleton program args)
+          return $ accum <> MapMappend (Map.singleton program args)
 
 -- | Parse fields of a program-locations stanza.
 parseProgramPaths :: ProgramDb -> Fields Position -> ParseResult (MapLast String FilePath)
@@ -247,7 +247,7 @@ parseProgramPaths programDb fields = foldM parseField mempty (Map.toList fields)
         Nothing -> warnUnknownFields fieldName fieldValues >> return accum
         Just program -> do
           fp <- parseProgramPathsField fieldValues
-          return $ accum <> (MapLast $ Map.singleton program fp)
+          return $ accum <> MapLast (Map.singleton program fp)
 
 -- | Parse all arguments to a single program in program-options stanza.
 -- By processing '[NamelessField Position]', we support multiple occurrences of the field, concatenating the arguments.

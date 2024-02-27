@@ -1,3 +1,4 @@
+builddir: something
 ignore-project: True
 compiler: ghcjs
 with-compiler: /some/path/to/compiler

@@ -142,6 +142,10 @@ projectConfigLogsDir :: Lens' ProjectConfigBuildOnly (Flag FilePath)
 projectConfigLogsDir f s = fmap (\x -> s{T.projectConfigLogsDir = x}) (f (T.projectConfigLogsDir s))
 {-# INLINEABLE projectConfigLogsDir #-}
 
+projectConfigDistDir :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigDistDir f s = fmap (\x -> s{T.projectConfigDistDir = x}) (f (T.projectConfigDistDir s))
+{-# INLINEABLE projectConfigDistDir #-}
+
 projectConfigIgnoreProject :: Lens' ProjectConfigShared (Flag Bool)
 projectConfigIgnoreProject f s = fmap (\x -> s{T.projectConfigIgnoreProject = x}) (f (T.projectConfigIgnoreProject s))
 {-# INLINEABLE projectConfigIgnoreProject #-}

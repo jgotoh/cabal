@@ -138,7 +138,7 @@ testProjectConfigShared = do
   (config, _) <- readConfigDefault rootFp
   assertConfig' expected config (projectConfigShared . condTreeData)
   where
-    projectConfigDistDir = mempty -- cli only
+    projectConfigDistDir = toFlag "something"
     projectConfigConfigFile = mempty -- cli only
     projectConfigProjectDir = mempty -- cli only
     projectConfigProjectFile = mempty -- cli only
