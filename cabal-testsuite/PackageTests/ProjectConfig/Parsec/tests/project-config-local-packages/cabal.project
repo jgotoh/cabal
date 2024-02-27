@@ -8,7 +8,7 @@ program-locations
 
 extra-prog-path: /tmp/bin/extra, /usr/local/bin
 flags: +foo -bar
-library-vanilla: false
+library-vanilla: False
 shared: True
 static: True
 executable-dynamic: True
@@ -60,9 +60,9 @@ haddock-for-hackage: for-hackage
 
 test-log: human-log.log
 test-machine-log: machine.log
-test-keep-tix-files: true
+test-keep-tix-files: True
 test-wrapper: /test-wrapper-path/
-test-fail-when-no-test-suites: true
+test-fail-when-no-test-suites: True
 test-show-details: streaming
 test-options: --some-option 42
 benchmark-options: --some-benchmark-option --another-option
