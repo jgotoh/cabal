@@ -23,6 +23,7 @@ import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.FieldGrammar.Parsec (NamelessField (..), namelessFieldAnn)
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
+import Distribution.Simple.Utils (warn)
 import Distribution.Verbosity
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
@@ -35,9 +36,9 @@ import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 
 -- AST type
-import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), SectionArg (..), readFields')
+import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), PWarning, SectionArg (..), readFields', showPWarning)
 import Distribution.Fields.LexerMonad (toPWarnings)
-import Distribution.Parsec (CabalParsing, ParsecParser, parsec, parsecFilePath, parsecToken, runParsecParser)
+import Distribution.Parsec (CabalParsing, PError (..), ParsecParser, parsec, parsecFilePath, parsecToken, runParsecParser)
 import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
 import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, lookupKnownProgram)
@@ -87,9 +88,18 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
                 then pure $ parseFatalFailure pos ("cyclical import of " ++ importLoc)
                 else do
                   let fs = fmap (\z -> CondNode z [importLoc] mempty) $ fieldsToConfig (reverse acc)
-                  res <- parseProjectSkeleton cacheDir httpTransport verbosity (importLoc : seenImports) importLoc =<< fetchImportConfig importLoc
+                  importParseResult <- parseProjectSkeleton cacheDir httpTransport verbosity (importLoc : seenImports) importLoc =<< fetchImportConfig importLoc
+                  -- As PError and PWarning do not store the filepath where they occurred, we need to print them here where we still have this information
+                  let (warnings, result) = runParseResult importParseResult
+                  traverse_ (warn verbosity . showPWarning importLoc) warnings
+                  let res' = case result of
+                        Right cfg -> pure cfg
+                        Left (_, errors) -> do
+                          traverse_ (\(PError pos str) -> parseFailure pos str) errors
+                          parseFatalFailure pos $ "Failed to parse import " ++ importLoc
+
                   rest <- go [] xs
-                  pure . fmap mconcat . sequence $ [fs, res, rest]
+                  pure . fmap mconcat . sequence $ [fs, res', rest]
           )
           (parseImport pos importLines)
       (Section (Name _pos name) args xs') | name == "if" -> do
@@ -225,7 +235,6 @@ parsePackageName pos args = case args of
     parser :: ParsecParser PackageConfigTarget
     parser =
       P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
-
 
 -- | Parse fields of a program-options stanza.
 parseProgramArgs :: ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])

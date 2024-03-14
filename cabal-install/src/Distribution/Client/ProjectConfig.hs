@@ -790,15 +790,15 @@ parseString
   -> FilePath
   -> BS.ByteString
   -> IO a
-parseString parser verbosity name bs = do
+parseString parser verbosity fpath bs = do
   pr <- parser bs
   let (warnings, result) = runParseResult pr
-  traverse_ (warn verbosity . showPWarning name) (flattenDups verbosity warnings)
+  traverse_ (warn verbosity . showPWarning fpath) (flattenDups verbosity warnings)
   case result of
     Right x -> return x
     Left (_, errors) -> do
-      traverse_ (warn verbosity . showPError name) errors
-      dieWithException verbosity $ FailedParsing name
+      traverse_ (warn verbosity . showPError fpath) errors
+      dieWithException verbosity $ FailedParsing fpath
 
 -- | Reads a named extended (with imports and conditionals) config file in the given project root dir, or returns empty.
 readProjectFileSkeletonLegacy :: Verbosity -> HttpTransport -> DistDirLayout -> String -> String -> Rebuild ProjectConfigSkeleton
