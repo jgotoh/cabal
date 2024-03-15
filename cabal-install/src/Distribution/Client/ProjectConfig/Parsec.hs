@@ -192,12 +192,12 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       unless (null sections) (warnInvalidSubsection pos name)
   | name == "program-options" = do
       -- TODO implement syntaxError lineno "the section 'program-options' takes no arguments"
-      opts <- lift $ parseProgramArgs programDb fields
+      opts <- lift $ parseProgramArgs Warn programDb fields
       stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramArgs = opts})
       unless (null sections) (warnInvalidSubsection pos name)
   | name == "program-locations" = do
       -- TODO implement syntaxError lineno "the section 'program-locations' takes no arguments"
-      opts <- lift $ parseProgramPaths programDb fields
+      opts <- lift $ parseProgramPaths Warn programDb fields
       stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramPaths = opts})
       unless (null sections) (warnInvalidSubsection pos name)
   | name == "package" = do
@@ -205,10 +205,16 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       case package of
         Just AllPackages -> do
           pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
-          stateConfig . L.projectConfigAllPackages .= pkgCfg
+          args' <- lift $ parseProgramArgs Ignore programDb fields
+          paths <- lift $ parseProgramPaths Ignore programDb fields
+          let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
+          stateConfig . L.projectConfigAllPackages .= pkgCfg'
         Just (SpecificPackage packageName) -> do
           pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
-          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName pkgCfg))
+          args' <- lift $ parseProgramArgs Ignore programDb fields
+          paths <- lift $ parseProgramPaths Ignore programDb fields
+          let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
+          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName pkgCfg'))
         Nothing -> return ()
       unless (null sections) (warnInvalidSubsection pos name)
   | otherwise = do
@@ -236,24 +242,31 @@ parsePackageName pos args = case args of
     parser =
       P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
 
+-- | Decide whether to issue Warnings on unknown fields
+data WarnUnknownFields = Ignore | Warn
+
 -- | Parse fields of a program-options stanza.
-parseProgramArgs :: ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])
-parseProgramArgs programDb fields = foldM parseField mempty (Map.toList fields)
+parseProgramArgs :: WarnUnknownFields -> ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])
+parseProgramArgs warnLevel programDb fields = foldM parseField mempty (Map.toList fields)
   where
     parseField accum (fieldName, fieldValues) = do
       case readProgramName "-options" programDb fieldName of
-        Nothing -> warnUnknownFields fieldName fieldValues >> return accum
+        Nothing -> case warnLevel of
+          Ignore -> return accum
+          Warn -> warnUnknownFields fieldName fieldValues >> return accum
         Just program -> do
           args <- parseProgramArgsField fieldValues
           return $ accum <> MapMappend (Map.singleton program args)
 
 -- | Parse fields of a program-locations stanza.
-parseProgramPaths :: ProgramDb -> Fields Position -> ParseResult (MapLast String FilePath)
-parseProgramPaths programDb fields = foldM parseField mempty (Map.toList fields)
+parseProgramPaths :: WarnUnknownFields -> ProgramDb -> Fields Position -> ParseResult (MapLast String FilePath)
+parseProgramPaths warnLevel programDb fields = foldM parseField mempty (Map.toList fields)
   where
     parseField accum (fieldName, fieldValues) = do
       case readProgramName "-location" programDb fieldName of
-        Nothing -> warnUnknownFields fieldName fieldValues >> return accum
+        Nothing -> case warnLevel of
+          Ignore -> return accum
+          Warn -> warnUnknownFields fieldName fieldValues >> return accum
         Just program -> do
           fp <- parseProgramPathsField fieldValues
           return $ accum <> MapLast (Map.singleton program fp)
