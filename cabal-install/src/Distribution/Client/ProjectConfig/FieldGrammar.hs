@@ -6,6 +6,7 @@ module Distribution.Client.ProjectConfig.FieldGrammar
   , packageConfigFieldGrammar
   ) where
 
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set as Set
 import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (PackageConfig (..), ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..))
@@ -21,8 +22,8 @@ import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..
 -- TODO check if ^^^ availableSince can be used in some of the fields (see FieldGrammar of PackageDescription)
 
 -- TODO ParsecFieldGrammar' is a Grammar implementation, we should just use abstract FieldGrammar here
-projectConfigFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfig
-projectConfigFieldGrammar source =
+projectConfigFieldGrammar :: FilePath -> [String] -> ParsecFieldGrammar' ProjectConfig
+projectConfigFieldGrammar source knownPrograms =
   ProjectConfig
     <$> monoidalFieldAla "packages" (alaList' FSep Token') L.projectPackages
     <*> monoidalFieldAla "optional-packages" (alaList' FSep Token') L.projectPackagesOptional
@@ -33,7 +34,7 @@ projectConfigFieldGrammar source =
     <*> pure provenance
     <*> pure mempty
     -- \^ PackageConfig to be applied to all packages, specified inside 'package *' stanza
-    <*> blurFieldGrammar L.projectConfigLocalPackages packageConfigFieldGrammar
+    <*> blurFieldGrammar L.projectConfigLocalPackages (packageConfigFieldGrammar knownPrograms)
     -- \^ PackageConfig to be applied to locally built packages, specified not inside a stanza
     <*> pure mempty
   where
@@ -107,8 +108,8 @@ projectConfigSharedFieldGrammar source =
     <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
     <*> monoidalField "multi-repl" L.projectConfigMultiRepl
 
-packageConfigFieldGrammar :: ParsecFieldGrammar' PackageConfig
-packageConfigFieldGrammar =
+packageConfigFieldGrammar :: [String] -> ParsecFieldGrammar' PackageConfig
+packageConfigFieldGrammar knownPrograms =
   PackageConfig
     <$> pure mempty -- program-options stanza
     <*> pure mempty -- program-locations stanza
@@ -171,3 +172,7 @@ packageConfigFieldGrammar =
     <*> optionalFieldDef "test-fail-when-no-test-suites" L.packageConfigTestFailWhenNoTestSuites mempty
     <*> monoidalFieldAla "test-options" (alaList NoCommaFSep) L.packageConfigTestTestOptions
     <*> monoidalFieldAla "benchmark-options" (alaList NoCommaFSep) L.packageConfigBenchmarkOptions
+    -- A PackageConfig may contain -options and -location fields inside a package * (packageConfigAllPackages) or package <name> stanza (packageConfigSpecificPackage).
+    -- When declared at top level (packageConfigLocalPackages), the PackageConfig must contain a program-options stanza/program-locations for these fields.
+    <* traverse_ (knownField . BS.pack . (<> "-options")) knownPrograms
+    <* traverse_ (knownField . BS.pack . (<> "-location")) knownPrograms

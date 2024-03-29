@@ -41,7 +41,7 @@ import Distribution.Fields.LexerMonad (toPWarnings)
 import Distribution.Parsec (CabalParsing, PError (..), ParsecParser, parsec, parsecFilePath, parsecToken, runParsecParser)
 import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
-import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, lookupKnownProgram)
+import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, lookupKnownProgram, knownPrograms)
 import Distribution.Simple.Program.Types (programName)
 import Distribution.Simple.Setup (Flag (..))
 import Distribution.Types.CondTree (CondBranch (..), CondTree (..))
@@ -140,8 +140,8 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
     fieldsToConfig xs = do
       let (fs, sectionGroups) = partitionFields xs
           sections = concat sectionGroups
-      config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source)
-      config' <- view stateConfig <$> execStateT (goSections defaultProgramDb sections) (SectionS config)
+      config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source (knownProgramNames programDb))
+      config' <- view stateConfig <$> execStateT (goSections programDb sections) (SectionS config)
       return config'
 
     fetchImportConfig :: ProjectConfigImport -> IO BS.ByteString
@@ -167,6 +167,10 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
 
     sanityWalkBranch :: CondBranch ConfVar [ProjectConfigImport] ProjectConfig -> ParseResult ()
     sanityWalkBranch (CondBranch _c t f) = traverse (sanityWalkPCS True) f >> sanityWalkPCS True t >> pure ()
+
+    programDb = defaultProgramDb
+
+knownProgramNames programDb = (programName . fst) <$> knownPrograms programDb
 
 -- | Monad in which sections are parsed
 type SectionParser = StateT SectionS ParseResult
@@ -204,13 +208,13 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       package <- lift $ parsePackageName pos args
       case package of
         Just AllPackages -> do
-          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
+          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
           args' <- lift $ parseProgramArgs Ignore programDb fields
           paths <- lift $ parseProgramPaths Ignore programDb fields
           let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
           stateConfig . L.projectConfigAllPackages .= pkgCfg'
         Just (SpecificPackage packageName) -> do
-          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields packageConfigFieldGrammar
+          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
           args' <- lift $ parseProgramArgs Ignore programDb fields
           paths <- lift $ parseProgramPaths Ignore programDb fields
           let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
@@ -222,6 +226,7 @@ parseSection programDb (MkSection (Name pos name) args secFields)
   where
     (fields, sections) = partitionFields secFields
     warnInvalidSubsection pos' name' = lift $ parseWarning pos' PWTInvalidSubsection $ "PARSEC: invalid subsection " ++ show name'
+    programNames = knownProgramNames programDb
 
 data PackageConfigTarget = AllPackages | SpecificPackage PackageName
 
