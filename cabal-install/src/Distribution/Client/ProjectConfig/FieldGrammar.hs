@@ -25,8 +25,8 @@ import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..
 projectConfigFieldGrammar :: FilePath -> [String] -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source knownPrograms =
   ProjectConfig
-    <$> monoidalFieldAla "packages" (alaList' FSep Token') L.projectPackages
-    <*> monoidalFieldAla "optional-packages" (alaList' FSep Token') L.projectPackagesOptional
+    <$> monoidalFieldAla "packages" (alaList' FSep Token) L.projectPackages
+    <*> monoidalFieldAla "optional-packages" (alaList' FSep Token) L.projectPackagesOptional
     <*> pure mempty -- source-repository-package stanza
     <*> monoidalFieldAla "extra-packages" formatPackageVersionConstraints L.projectPackagesNamed
     <*> blurFieldGrammar L.projectConfigBuildOnly projectConfigBuildOnlyFieldGrammar
