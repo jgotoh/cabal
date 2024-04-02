@@ -23,7 +23,7 @@ module Distribution.Simple.GHCJS
   , hcPkgInfo
   , registerPackage
   , componentGhcOptions
-  , componentCcGhcOptions
+  , Internal.componentCcGhcOptions
   , getLibDir
   , isDynamic
   , getGlobalPackageDB
@@ -68,11 +68,12 @@ import qualified Distribution.Simple.Hpc as Hpc
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.PackageIndex (InstalledPackageIndex)
 import qualified Distribution.Simple.PackageIndex as PackageIndex
+import Distribution.Simple.PreProcess.Types
 import Distribution.Simple.Program
 import Distribution.Simple.Program.GHC
 import qualified Distribution.Simple.Program.HcPkg as HcPkg
 import qualified Distribution.Simple.Program.Strip as Strip
-import Distribution.Simple.Setup.Config
+import Distribution.Simple.Setup.Common
 import Distribution.Simple.Utils
 import Distribution.System
 import Distribution.Types.ComponentLocalBuildInfo
@@ -481,7 +482,7 @@ buildOrReplLib
   -> Library
   -> ComponentLocalBuildInfo
   -> IO ()
-buildOrReplLib mReplFlags verbosity numJobs pkg_descr lbi lib clbi = do
+buildOrReplLib mReplFlags verbosity numJobs _pkg_descr lbi lib clbi = do
   let uid = componentUnitId clbi
       libTargetDir = componentBuildDir lbi clbi
       whenVanillaLib forceVanilla =
@@ -515,15 +516,9 @@ buildOrReplLib mReplFlags verbosity numJobs pkg_descr lbi lib clbi = do
   -- Determine if program coverage should be enabled and if so, what
   -- '-hpcdir' should be.
   let isCoverageEnabled = libCoverage lbi
-      -- TODO: Historically HPC files have been put into a directory which
-      -- has the package name.  I'm going to avoid changing this for
-      -- now, but it would probably be better for this to be the
-      -- component ID instead...
-      pkg_name = prettyShow (PD.package pkg_descr)
-      distPref = fromFlag $ configDistPref $ configFlags lbi
       hpcdir way
         | forRepl = mempty -- HPC is not supported in ghci
-        | isCoverageEnabled = toFlag $ Hpc.mixDir distPref way pkg_name
+        | isCoverageEnabled = toFlag $ Hpc.mixDir (libTargetDir </> extraCompilationArtifacts) way
         | otherwise = mempty
 
   createDirectoryIfMissingVerbose verbosity True libTargetDir
@@ -1220,7 +1215,6 @@ gbuild verbosity numJobs pkg_descr lbi bm clbi = do
         GBuildFLib{} -> mempty
       comp = compiler lbi
       platform = hostPlatform lbi
-      implInfo = getImplInfo comp
       runGhcProg = runGHC verbosity ghcjsProg comp platform
 
   let (bnfo, threaded) = case bm of
@@ -1240,10 +1234,9 @@ gbuild verbosity numJobs pkg_descr lbi bm clbi = do
   -- Determine if program coverage should be enabled and if so, what
   -- '-hpcdir' should be.
   let isCoverageEnabled = exeCoverage lbi
-      distPref = fromFlag $ configDistPref $ configFlags lbi
       hpcdir way
         | gbuildIsRepl bm = mempty -- HPC is not supported in ghci
-        | isCoverageEnabled = toFlag $ Hpc.mixDir distPref way (gbuildName bm)
+        | isCoverageEnabled = toFlag $ Hpc.mixDir (tmpDir </> extraCompilationArtifacts) way
         | otherwise = mempty
 
   rpaths <- getRPaths lbi clbi
@@ -1425,7 +1418,6 @@ gbuild verbosity numJobs pkg_descr lbi bm clbi = do
         let baseCxxOpts =
               Internal.componentCxxGhcOptions
                 verbosity
-                implInfo
                 lbi
                 bnfo
                 clbi
@@ -1472,7 +1464,6 @@ gbuild verbosity numJobs pkg_descr lbi bm clbi = do
         let baseCcOpts =
               Internal.componentCcGhcOptions
                 verbosity
-                implInfo
                 lbi
                 bnfo
                 clbi
@@ -1697,7 +1688,7 @@ getRPaths lbi clbi | supportRPaths hostOS = do
     supportRPaths Android = False
     supportRPaths Ghcjs = False
     supportRPaths Wasi = False
-    supportRPaths Hurd = False
+    supportRPaths Hurd = True
     supportRPaths Haiku = False
     supportRPaths (OtherOS _) = False
 -- Do _not_ add a default case so that we get a warning here when a new OS
@@ -1739,20 +1730,12 @@ libAbiHash verbosity _pkg_descr lbi lib clbi = do
     libBi = libBuildInfo lib
     comp = compiler lbi
     platform = hostPlatform lbi
-    vanillaArgs0 =
+    vanillaArgs =
       (componentGhcOptions verbosity lbi libBi clbi (componentBuildDir lbi clbi))
         `mappend` mempty
           { ghcOptMode = toFlag GhcModeAbiHash
           , ghcOptInputModules = toNubListR $ exposedModules lib
           }
-    vanillaArgs =
-      -- Package DBs unnecessary, and break ghc-cabal. See #3633
-      -- BUT, put at least the global database so that 7.4 doesn't
-      -- break.
-      vanillaArgs0
-        { ghcOptPackageDBs = [GlobalPackageDB]
-        , ghcOptPackages = mempty
-        }
     sharedArgs =
       vanillaArgs
         `mappend` mempty
@@ -1784,7 +1767,7 @@ libAbiHash verbosity _pkg_descr lbi lib clbi = do
   hash <-
     getProgramInvocationOutput
       verbosity
-      (ghcInvocation ghcjsProg comp platform ghcArgs)
+      =<< ghcInvocation verbosity ghcjsProg comp platform ghcArgs
   return (takeWhile (not . isSpace) hash)
 
 componentGhcOptions
@@ -1795,26 +1778,10 @@ componentGhcOptions
   -> FilePath
   -> GhcOptions
 componentGhcOptions verbosity lbi bi clbi odir =
-  let opts = Internal.componentGhcOptions verbosity implInfo lbi bi clbi odir
-      comp = compiler lbi
-      implInfo = getImplInfo comp
+  let opts = Internal.componentGhcOptions verbosity lbi bi clbi odir
    in opts
         { ghcOptExtra = ghcOptExtra opts `mappend` hcOptions GHCJS bi
         }
-
-componentCcGhcOptions
-  :: Verbosity
-  -> LocalBuildInfo
-  -> BuildInfo
-  -> ComponentLocalBuildInfo
-  -> FilePath
-  -> FilePath
-  -> GhcOptions
-componentCcGhcOptions verbosity lbi =
-  Internal.componentCcGhcOptions verbosity implInfo lbi
-  where
-    comp = compiler lbi
-    implInfo = getImplInfo comp
 
 -- -----------------------------------------------------------------------------
 -- Installing
@@ -1895,9 +1862,9 @@ installLib
   -> ComponentLocalBuildInfo
   -> IO ()
 installLib verbosity lbi targetDir dynlibTargetDir _builtDir _pkg lib clbi = do
-  whenVanilla $ copyModuleFiles "js_hi"
-  whenProf $ copyModuleFiles "js_p_hi"
-  whenShared $ copyModuleFiles "js_dyn_hi"
+  whenVanilla $ copyModuleFiles $ Suffix "js_hi"
+  whenProf $ copyModuleFiles $ Suffix "js_p_hi"
+  whenShared $ copyModuleFiles $ Suffix "js_dyn_hi"
 
   -- whenVanilla $ installOrdinary builtDir targetDir $ toJSLibName vanillaLibName
   -- whenProf    $ installOrdinary builtDir targetDir $ toJSLibName profileLibName

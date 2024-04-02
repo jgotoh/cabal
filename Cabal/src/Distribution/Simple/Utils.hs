@@ -201,6 +201,7 @@ import Distribution.Compat.Prelude
 import Distribution.Compat.Stack
 import Distribution.ModuleName as ModuleName
 import Distribution.Simple.Errors
+import Distribution.Simple.PreProcess.Types
 import Distribution.System
 import Distribution.Types.PackageId
 import Distribution.Utils.Generic
@@ -1198,7 +1199,7 @@ findFileCwd verbosity cwd searchPath fileName =
   findFirstFile
     (cwd </>)
     [ path </> fileName
-    | path <- nub searchPath
+    | path <- ordNub searchPath
     ]
     >>= maybe (dieWithException verbosity $ FindFileCwd fileName) return
 
@@ -1214,7 +1215,7 @@ findFileEx verbosity searchPath fileName =
   findFirstFile
     id
     [ path </> fileName
-    | path <- nub searchPath
+    | path <- ordNub searchPath
     ]
     >>= maybe (dieWithException verbosity $ FindFileEx fileName) return
 
@@ -1222,7 +1223,7 @@ findFileEx verbosity searchPath fileName =
 -- file extensions. The file base name should be given and it will be tried
 -- with each of the extensions in each element of the search path.
 findFileWithExtension
-  :: [String]
+  :: [Suffix]
   -> [FilePath]
   -> FilePath
   -> IO (Maybe FilePath)
@@ -1230,14 +1231,14 @@ findFileWithExtension extensions searchPath baseName =
   findFirstFile
     id
     [ path </> baseName <.> ext
-    | path <- nub searchPath
-    , ext <- nub extensions
+    | path <- ordNub searchPath
+    , Suffix ext <- ordNub extensions
     ]
 
 -- | @since 3.4.0.0
 findFileCwdWithExtension
   :: FilePath
-  -> [String]
+  -> [Suffix]
   -> [FilePath]
   -> FilePath
   -> IO (Maybe FilePath)
@@ -1245,15 +1246,15 @@ findFileCwdWithExtension cwd extensions searchPath baseName =
   findFirstFile
     (cwd </>)
     [ path </> baseName <.> ext
-    | path <- nub searchPath
-    , ext <- nub extensions
+    | path <- ordNub searchPath
+    , Suffix ext <- ordNub extensions
     ]
 
 -- | @since 3.4.0.0
 findAllFilesCwdWithExtension
   :: FilePath
   -- ^ cwd
-  -> [String]
+  -> [Suffix]
   -- ^ extensions
   -> [FilePath]
   -- ^ relative search locations
@@ -1264,12 +1265,12 @@ findAllFilesCwdWithExtension cwd extensions searchPath basename =
   findAllFiles
     (cwd </>)
     [ path </> basename <.> ext
-    | path <- nub searchPath
-    , ext <- nub extensions
+    | path <- ordNub searchPath
+    , Suffix ext <- ordNub extensions
     ]
 
 findAllFilesWithExtension
-  :: [String]
+  :: [Suffix]
   -> [FilePath]
   -> FilePath
   -> IO [FilePath]
@@ -1277,14 +1278,14 @@ findAllFilesWithExtension extensions searchPath basename =
   findAllFiles
     id
     [ path </> basename <.> ext
-    | path <- nub searchPath
-    , ext <- nub extensions
+    | path <- ordNub searchPath
+    , Suffix ext <- ordNub extensions
     ]
 
 -- | Like 'findFileWithExtension' but returns which element of the search path
 -- the file was found in, and the file path relative to that base directory.
 findFileWithExtension'
-  :: [String]
+  :: [Suffix]
   -> [FilePath]
   -> FilePath
   -> IO (Maybe (FilePath, FilePath))
@@ -1292,8 +1293,8 @@ findFileWithExtension' extensions searchPath baseName =
   findFirstFile
     (uncurry (</>))
     [ (path, baseName <.> ext)
-    | path <- nub searchPath
-    , ext <- nub extensions
+    | path <- ordNub searchPath
+    , Suffix ext <- ordNub extensions
     ]
 
 findFirstFile :: (a -> FilePath) -> [a] -> IO (Maybe a)
@@ -1316,7 +1317,7 @@ findModuleFilesEx
   :: Verbosity
   -> [FilePath]
   -- ^ build prefix (location of objects)
-  -> [String]
+  -> [Suffix]
   -- ^ search suffixes
   -> [ModuleName]
   -- ^ modules
@@ -1332,7 +1333,7 @@ findModuleFileEx
   :: Verbosity
   -> [FilePath]
   -- ^ build prefix (location of objects)
-  -> [String]
+  -> [Suffix]
   -- ^ search suffixes
   -> ModuleName
   -- ^ module
@@ -1535,7 +1536,7 @@ copyFilesWith
   -> IO ()
 copyFilesWith doCopy verbosity targetDir srcFiles = withFrozenCallStack $ do
   -- Create parent directories for everything
-  let dirs = map (targetDir </>) . nub . map (takeDirectory . snd) $ srcFiles
+  let dirs = map (targetDir </>) . ordNub . map (takeDirectory . snd) $ srcFiles
   traverse_ (createDirectoryIfMissingVerbose verbosity True) dirs
 
   -- Copy all the files

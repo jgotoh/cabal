@@ -19,6 +19,7 @@ Commands
      [global]
       user-config            Display and update the user's global cabal configuration.
       help                   Help about commands.
+      path                   Display paths used by cabal.
 
      [package database]
       update                 Updates list of known packages.
@@ -283,6 +284,38 @@ cabal preferences. It is very useful when you are e.g. first configuring
 
       Note how ``--augment`` syntax follows ``cabal user-config diff``
       output.
+
+cabal path
+^^^^^^^^^^
+
+``cabal path`` prints the file system paths used by ``cabal`` for
+cache, store, installed binaries, and so on. When run without any
+options, it will show all paths, labeled with how they are namen in
+the configuration file:
+
+::
+   $ cabal path
+   cache-dir: /home/haskell/.cache/cabal/packages
+   logs-dir: /home/haskell/.cache/cabal/logs
+   store-dir: /home/haskell/.local/state/cabal/store
+   config-file: /home/haskell/.config/cabal/config
+   installdir: /home/haskell/.local/bin
+   ...
+
+If ``cabal path`` is passed a single option naming a path, then that
+path will be printed *without* any label:
+
+::
+
+   $ cabal path --installdir
+   /home/haskell/.local/bin
+
+This is a stable interface and is intended to be used for scripting.
+For example:
+
+::
+   $ ls $(cabal path --installdir)
+   ...
 
 .. _command-group-database:
 
@@ -1139,6 +1172,11 @@ tricky GHC options, etc.).
 
 Run ``cabal check`` in the folder where your ``.cabal`` package file is.
 
+.. option:: -i, --ignore=WARNING
+
+    Ignore a specific type of warning (e.g. ``--ignore=missing-upper-bounds``).
+    Check the list of warnings for which constructor to use.
+
 .. option:: -v[n], --verbose[=n]
 
     Control verbosity (n is 0--3, default verbosity level is 1).
@@ -1147,6 +1185,147 @@ Issues are classified as ``Warning``\s and ``Error``\s. The latter correspond
 to Hackage requirements for uploaded packages: if no error is reported,
 Hackage should accept your package. If errors are present ``cabal check``
 exits with ``1`` and Hackage will refuse the package.
+
+A list of all warnings with their constructor:
+
+- ``parser-warning``: inherited from parser.
+- ``no-name-field``: missing ``name`` field.
+- ``no-version-field``: missing ``version`` field.
+- ``no-target``: missing target in ``.cabal``.
+- ``unnamed-internal-library``: unnamed internal library.
+- ``duplicate-sections``: duplicate name in target.
+- ``illegal-library-name``: internal library with same name as package.
+- ``no-modules-exposed``: no module exposed in library.
+- ``signatures``: ``signatures`` used with ``cabal-version`` < 2.0.
+- ``autogen-not-exposed``: ``autogen-module`` neither in ``exposed-modules`` nor ``other-modules``.
+- ``autogen-not-included``: ``autogen-include`` neither in ``include`` nor ``install-includes``.
+- ``no-main-is``: missing ``main-is``.
+- ``unknown-extension-main``: ``main-is`` is not ``.hs`` nor ``.lhs``.
+- ``c-like-main``: C-like source file in ``main-is`` with ``cabal-version`` < 1.18.
+- ``autogen-other-modules``: ``autogen-module`` not in ``other-modules``.
+- ``autogen-exe``: ``autogen-include`` not in ``includes``.
+- ``unknown-testsuite-type``: unknown test-suite type.
+- ``unsupported-testsuite``: unsupported test-suite type.
+- ``unknown-bench``: unknown benchmark type.
+- ``unsupported-bench``: unsupported benchmark type.
+- ``bench-unknown-extension``: ``main-is`` for benchmark is neither ``.hs`` nor ``.lhs``.
+- ``invalid-name-win``: invalid package name on Windows.
+- ``reserved-z-prefix``: package with ``z-`` prexif (reseved for Cabal.
+- ``no-build-type``: missing ``build-type``.
+- ``undeclared-custom-setup``: ``custom-setup`` section without ``build-type: Custom``
+- ``unknown-compiler-tested``: unknown compiler in ``tested-with``.
+- ``unknown-languages``: unknown languages.
+- ``unknown-extension``: unknown extensions.
+- ``languages-as-extensions``: languages listed as extensions.
+- ``deprecated-extensions``: deprecated extensions.
+- ``no-category``: missing ``category`` field.
+- ``no-maintainer``: missing ``maintainer`` field.
+- ``no-synopsis``: missing ``synopsis`` field.
+- ``no-description``: missing ``description`` field.
+- ``no-syn-desc``: missing ``synopsis`` or ``description`` field.
+- ``long-synopsis``: ``synopsis`` longer than 80 characters.
+- ``short-description``: ``description`` shorter than ``synopsis``.
+- ``invalid-range-tested``: invalid ``tested-with`` version range.
+- ``impossible-dep``: impossible internal library version range dependency.
+- ``impossible-dep-exe``: impossible internal executable version range dependency.
+- ``no-internal-exe``: missing internal executable.
+- ``license-none``: ``NONE`` in ``license`` field.
+- ``no-license``: no ``license`` field.
+- ``all-rights-reserved``: “All rights reserved” license.
+- ``license-parse``: license not to be used with ``cabal-version`` < 1.4.
+- ``unknown-license``: unknown license.
+- ``bsd4-license``: uncommon BSD (BSD4) license.
+- ``unknown-license-version``: unknown license version.
+- ``no-license-file``: missing license file.
+- ``unrecognised-repo-type``: unrecognised kind of source-repository.
+- ``repo-no-type``: missing ``type`` in ``source-repository``.
+- ``repo-no-location``: missing ``location`` in ``source-repository``.
+- ``repo-no-module``: missing ``module`` in ``source-repository``.
+- ``repo-no-tag``: missing ``tag`` in ``source-repository``.
+- ``repo-relative-dir``: ``subdir`` in ``source-repository`` must be relative.
+- ``repo-malformed-subdir``: malformed ``subdir`` in ``source-repository``.
+- ``option-fasm``: unnecessary ``-fasm``.
+- ``option-fhpc``: unnecessary ``-fhpc``.
+- ``option-prof``: unnecessary ``-prof``.
+- ``option-o``: unnecessary ``-o``.
+- ``option-hide-package``: unnecessary ``-hide-package``.
+- ``option-make``: unnecessary ``--make``.
+- ``option-optimize``: unnecessary disable optimization flag.
+- ``option-o1``: unnecessary optimisation flag (``-O1``).
+- ``option-o2``: unnecessary optimisation flag (``-O2``).
+- ``option-split-section``: unnecessary ``-split-section``.
+- ``option-split-objs``: unnecessary ``-split-objs``.
+- ``option-optl-wl``:unnecessary ``-optl-Wl,-s``.
+- ``use-extension``: use ``extension`` field instead of ``-fglasgow-exts``.
+- ``option-rtsopts``: unnecessary ``-rtsopts``.
+- ``option-with-rtsopts``: unnecessary ``-with-rtsopts``.
+- ``option-opt-c``: unnecessary ``-O[n]`` in C code.
+- ``cpp-options``: unportable ``-cpp-options`` flag.
+- ``misplaced-c-opt``: C-like options in wrong cabal field.
+- ``relative-path-outside``: relative path outside of source tree.
+- ``absolute-path``: absolute path where not allowed.
+- ``malformed-relative-path``: malformed relative path.
+- ``unreliable-dist-path``: unreliable path pointing inside ``dist``.
+- ``glob-syntax-error``: glob syntax error.
+- ``recursive-glob``: recursive glob including source control folders.
+- ``invalid-path-win``: invalid path on Windows.
+- ``long-path``: path too long (POSIX, 255 ASCII chars).
+- ``long-name``: path *name* too long (POSIX, 100 ASCII chars).
+- ``name-not-portable``: path non portable (POSIX, split requirements).
+- ``empty-path``: empty path.
+- ``test-cabal-ver``: ``test-suite`` used with ``cabal-version`` < 1.10.
+- ``default-language``: ``default-language`` used with ``cabal-version`` < 1.10.
+- ``no-default-language``: missing ``default-language``.
+- ``add-default-language``: suggested ``default-language``.
+- ``extra-doc-files``: ``extra-doc-files`` used with ``cabal-version`` < 1.18.
+- ``multilib``: multiple ``library`` sections with ``cabal-version`` < 2.0.
+- ``reexported-modules``: ``reexported-modules`` with ``cabal-version`` < 1.22.
+- ``mixins``: ``mixins`` with ``cabal-version`` < 2.0.
+- ``extra-framework-dirs``: ``extra-framework-dirs`` with ``cabal-version`` < 1.24.
+- ``default-extensions``: ``default-extensions`` with ``cabal-version`` < 1.10.
+- ``extensions-field``: deprecated ``extensions`` field used with ``cabal-version`` ≥ 1.10
+- ``unsupported-sources``: ``asm-sources``, ``cmm-sources``, ``extra-bundled-libraries`` or ``extra-library-flavours`` used with ``cabal-version`` < 3.0.
+- ``extra-dynamic``: ``extra-dynamic-library-flavours`` used with cabal-version < 3.0.
+- ``virtual-modules``: ``virtual-modules`` used with cabal-version < 2.2.
+- ``source-repository``: ``source-repository`` used with ``cabal-version`` 1.6.
+- ``incompatible-extension``: incompatible language extension with ``cabal-version``.
+- ``no-setup-depends``: missing ``setup-depends`` field in ``custom-setup`` with ``cabal-version`` ≥ 1.24.
+- ``dependencies-setup``: missing dependencies in ``custom-setup`` with ``cabal-version`` ≥ 1.24.
+- ``no-autogen-paths``: missing autogen ``Paths_*`` modules in ``autogen-modules`` (``cabal-version`` ≥ 2.0).
+- ``no-autogen-pinfo``: missing autogen ``PackageInfo_*`` modules in ``autogen-modules`` *and* ``exposed-modules``/``other-modules`` (``cabal-version`` ≥ 2.0).
+- ``no-glob-match``: glob pattern not matching any file.
+- ``glob-no-extension``: glob pattern not matching any file becuase of lack of extension matching (`cabal-version` < 2.4).
+- ``glob-missing-dir``: glob pattern trying to match a missing directory.
+- ``unknown-os``: unknown operating system name in condition.
+- ``unknown-arch``: unknown architecture in condition.
+- ``unknown-compiler``: unknown compiler in condition.
+- ``missing-bounds-important``: missing upper bounds for important dependencies (``base``, and for ``custom-setup`` ``Cabal`` too).
+- ``missing-upper-bounds``: missing upper bound in dependency (excluding test-suites and benchmarks).
+- ``suspicious-flag``: troublesome flag name (e.g. starting with a dash).
+- ``unused-flag``: unused user flags.
+- ``non-ascii``: non-ASCII characters in custom field.
+- ``rebindable-clash-paths``: ``Rebindable Syntax`` with ``OverloadedStrings``/``OverloadedStrings`` plus autogenerated ``Paths_*`` modules with ``cabal-version`` < 2.2.
+- ``rebindable-clash-info``: ``Rebindable Syntax`` with ``OverloadedStrings``/``OverloadedStrings`` plus autogenerated ``PackageInfo_*`` modules with ``cabal-version`` < 2.2.
+- ``werror``: ``-WError`` not under a user flag.
+- ``unneeded-j``: suspicious ``-j[n]`` usage.
+- ``fdefer-type-errors``: suspicious ``-fdefer-type-errors``.
+- ``debug-flag``: suspicious ``-d*`` debug flag for distributed package.
+- ``fprof-flag``: suspicious ``-fprof-*`` flag.
+- ``missing-bounds-setup``: missing upper bounds in ``setup-depends``.
+- ``duplicate-modules``: duplicate modules in target.
+- ``maybe-duplicate-modules``: potential duplicate module in target (subject to conditionals).
+- ``bom``: unicode byte order mark (BOM) character at start of file.
+- ``name-no-match``: filename not matching ``name``.
+- ``no-cabal-file``: no ``.cabal`` file found in folder.
+- ``multiple-cabal-file``: multiple ``.cabal`` files found in folder.
+- ``unknown-file``: path refers to a file which does not exist.
+- ``missing-setup``: missing ``Setup.hs`` or ``Setup.lsh``.
+- ``missing-conf-script``: missing ``configure`` script with ``build-type: Configure``.
+- ``unknown-directory``: paths refer to a directory which does not exist.
+- ``no-repository``: missing ``source-repository`` section.
+- ``no-docs``: missing expected documentation files (changelog).
+- ``doc-place``: documentation files listed in ``extra-source-files`` instead of ``extra-doc-files``.
+
 
 cabal sdist
 ^^^^^^^^^^^
@@ -1203,8 +1382,8 @@ to Hackage.
 
 .. option:: -t TOKEN or -tTOKEN, --token=TOKEN
 
-    Your Hackage authentication token. You can create and delete 
-    authentication tokens on Hackage's `account management page 
+    Your Hackage authentication token. You can create and delete
+    authentication tokens on Hackage's `account management page
     <https://hackage.haskell.org/users/account-management>`__.
 
 .. option:: -u USERNAME or -uUSERNAME, --username=USERNAME
@@ -1238,8 +1417,8 @@ cabal report
 
 .. option:: -t TOKEN or -tTOKEN, --token=TOKEN
 
-    Your Hackage authentication token. You can create and delete 
-    authentication tokens on Hackage's `account management page 
+    Your Hackage authentication token. You can create and delete
+    authentication tokens on Hackage's `account management page
     <https://hackage.haskell.org/users/account-management>`__.
 
 .. option:: -u USERNAME or -uUSERNAME, --username=USERNAME

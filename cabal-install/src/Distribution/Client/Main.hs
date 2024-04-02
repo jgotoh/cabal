@@ -23,6 +23,7 @@ module Distribution.Client.Main (main) where
 import Distribution.Client.Setup
   ( ActAsSetupFlags (..)
   , BuildFlags (..)
+  , CheckFlags (..)
   , ConfigExFlags (..)
   , ConfigFlags (..)
   , FetchFlags (..)
@@ -33,6 +34,8 @@ import Distribution.Client.Setup
   , InitFlags (initHcPath, initVerbosity)
   , InstallFlags (..)
   , ListFlags (..)
+  , Path (..)
+  , PathFlags (..)
   , ReportFlags (..)
   , UploadFlags (..)
   , UserConfigFlags (..)
@@ -60,6 +63,8 @@ import Distribution.Client.Setup
   , listCommand
   , listNeedsCompiler
   , manpageCommand
+  , pathCommand
+  , pathName
   , reconfigureCommand
   , registerCommand
   , replCommand
@@ -97,7 +102,11 @@ import Prelude ()
 import Distribution.Client.Config
   ( SavedConfig (..)
   , createDefaultConfigFile
+  , defaultCacheDir
   , defaultConfigFile
+  , defaultInstallPath
+  , defaultLogsDir
+  , defaultStoreDir
   , getConfigFilePath
   , loadConfig
   , userConfigDiff
@@ -143,6 +152,7 @@ import Distribution.Client.Install (install)
 
 -- import Distribution.Client.Clean            (clean)
 
+import Distribution.Client.CmdInstall.ClientInstallFlags (ClientInstallFlags (cinstInstalldir))
 import Distribution.Client.Get (get)
 import Distribution.Client.Init (initCmd)
 import Distribution.Client.Manpage (manpageCmd)
@@ -196,7 +206,8 @@ import Distribution.Simple.Command
   , commandAddAction
   , commandFromSpec
   , commandShowOptions
-  , commandsRun
+  , commandsRunWithFallback
+  , defaultCommandFallback
   , hiddenCommand
   )
 import Distribution.Simple.Compiler (PackageDBStack)
@@ -212,6 +223,8 @@ import Distribution.Simple.PackageDescription (readGenericPackageDescription)
 import Distribution.Simple.Program
   ( configureAllKnownPrograms
   , defaultProgramDb
+  , defaultProgramSearchPath
+  , findProgramOnSearchPath
   , getProgramInvocationOutput
   , simpleProgramInvocation
   )
@@ -227,6 +240,7 @@ import Distribution.Simple.Utils
   , notice
   , topHandler
   , tryFindPackageDesc
+  , withOutputMarker
   )
 import Distribution.Text
   ( display
@@ -242,6 +256,7 @@ import Distribution.Version
   )
 
 import Control.Exception (AssertionFailed, assert, try)
+import Control.Monad (mapM_)
 import Data.Monoid (Any (..))
 import Distribution.Client.Errors
 import Distribution.Compat.ResponseFile
@@ -250,7 +265,7 @@ import System.Directory
   , getCurrentDirectory
   , withCurrentDirectory
   )
-import System.Environment (getProgName)
+import System.Environment (getEnvironment, getExecutablePath, getProgName)
 import System.FilePath
   ( dropExtension
   , splitExtension
@@ -265,6 +280,7 @@ import System.IO
   , stderr
   , stdout
   )
+import System.Process (createProcess, env, proc)
 
 -- | Entry point
 --
@@ -322,8 +338,9 @@ warnIfAssertionsAreEnabled =
 -- into IO actions for execution.
 mainWorker :: [String] -> IO ()
 mainWorker args = do
-  topHandler $
-    case commandsRun (globalCommand commands) commands args of
+  topHandler $ do
+    command <- commandsRunWithFallback (globalCommand commands) commands delegateToExternal args
+    case command of
       CommandHelp help -> printGlobalHelp help
       CommandList opts -> printOptionsList opts
       CommandErrors errs -> printErrors errs
@@ -352,6 +369,27 @@ mainWorker args = do
             warnIfAssertionsAreEnabled
             action globalFlags
   where
+    delegateToExternal
+      :: [Command Action]
+      -> String
+      -> [String]
+      -> IO (CommandParse Action)
+    delegateToExternal commands' name cmdArgs = do
+      mCommand <- findProgramOnSearchPath normal defaultProgramSearchPath ("cabal-" <> name)
+      case mCommand of
+        Just (exec, _) -> return (CommandReadyToGo $ \_ -> callExternal exec name cmdArgs)
+        Nothing -> defaultCommandFallback commands' name cmdArgs
+
+    callExternal :: String -> String -> [String] -> IO ()
+    callExternal exec name cmdArgs = do
+      cur_env <- getEnvironment
+      cabal_exe <- getExecutablePath
+      let new_env = ("CABAL", cabal_exe) : cur_env
+      result <- try $ createProcess ((proc exec (name : cmdArgs)){env = Just new_env})
+      case result of
+        Left ex -> printErrors ["Error executing external command: " ++ show (ex :: SomeException)]
+        Right _ -> return ()
+
     printCommandHelp help = do
       pname <- getProgName
       putStr (help pname)
@@ -359,6 +397,10 @@ mainWorker args = do
       pname <- getProgName
       configFile <- defaultConfigFile
       putStr (help pname)
+      -- Andreas Abel, 2024-01-28: https://github.com/haskell/cabal/pull/9614
+      -- See cabal-testsuite/PackageTests/Help/HelpPrintsConfigFile/
+      -- Third-party tools may rely on the specific wording
+      -- to find the config file in the help text, so do not change!
       putStr $
         "\nYou can edit the cabal configuration file to set defaults:\n"
           ++ "  "
@@ -392,6 +434,7 @@ mainWorker args = do
       , regularCmd reportCommand reportAction
       , regularCmd initCommand initAction
       , regularCmd userConfigCommand userConfigAction
+      , regularCmd pathCommand pathAction
       , regularCmd genBoundsCommand genBoundsAction
       , regularCmd CmdOutdated.outdatedCommand CmdOutdated.outdatedAction
       , wrapperCmd hscolourCommand hscolourVerbosity hscolourDistPref
@@ -1187,13 +1230,14 @@ uploadAction uploadFlags extraArgs globalFlags = do
       pkg <- fmap LBI.localPkgDescr (getPersistBuildConfig distPref)
       return $ distPref </> display (packageId pkg) ++ "-docs" <.> "tar.gz"
 
-checkAction :: Flag Verbosity -> [String] -> Action
-checkAction verbosityFlag extraArgs _globalFlags = do
-  let verbosity = fromFlag verbosityFlag
+checkAction :: CheckFlags -> [String] -> Action
+checkAction checkFlags extraArgs _globalFlags = do
+  let verbosityFlag = checkVerbosity checkFlags
+      verbosity = fromFlag verbosityFlag
   unless (null extraArgs) $
     dieWithException verbosity $
       CheckAction extraArgs
-  allOk <- Check.check (fromFlag verbosityFlag)
+  allOk <- Check.check (fromFlag verbosityFlag) (checkIgnore checkFlags)
   unless allOk exitFailure
 
 formatAction :: Flag Verbosity -> [String] -> Action
@@ -1344,3 +1388,32 @@ manpageAction commands flags extraArgs _ = do
           then dropExtension pname
           else pname
   manpageCmd cabalCmd commands flags
+
+pathAction :: PathFlags -> [String] -> Action
+pathAction pathflags extraArgs globalFlags = do
+  let verbosity = fromFlag (pathVerbosity pathflags)
+  unless (null extraArgs) $
+    dieWithException verbosity $
+      ManpageAction extraArgs
+  cfg <- loadConfig verbosity mempty
+  let getDir getDefault getGlobal =
+        maybe
+          getDefault
+          pure
+          (flagToMaybe $ getGlobal $ savedGlobalFlags cfg)
+      getSomeDir PathCacheDir = getDir defaultCacheDir globalCacheDir
+      getSomeDir PathLogsDir = getDir defaultLogsDir globalLogsDir
+      getSomeDir PathStoreDir = getDir defaultStoreDir globalStoreDir
+      getSomeDir PathConfigFile = getConfigFilePath (globalConfigFile globalFlags)
+      getSomeDir PathInstallDir =
+        fromFlagOrDefault defaultInstallPath (pure <$> cinstInstalldir (savedClientInstallFlags cfg))
+      printPath p = putStrLn . withOutputMarker verbosity . ((pathName p ++ ": ") ++) =<< getSomeDir p
+  -- If no paths have been requested, print all paths with labels.
+  --
+  -- If a single path has been requested, print that path without any label.
+  --
+  -- If multiple paths have been requested, print each of them with labels.
+  case fromFlag $ pathDirs pathflags of
+    [] -> mapM_ printPath [minBound .. maxBound]
+    [d] -> putStrLn . withOutputMarker verbosity =<< getSomeDir d
+    ds -> mapM_ printPath ds

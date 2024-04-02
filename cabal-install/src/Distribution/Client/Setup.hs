@@ -66,6 +66,7 @@ module Distribution.Client.Setup
   , unpackCommand
   , GetFlags (..)
   , checkCommand
+  , CheckFlags (..)
   , formatCommand
   , uploadCommand
   , UploadFlags (..)
@@ -85,6 +86,10 @@ module Distribution.Client.Setup
   , cleanCommand
   , copyCommand
   , registerCommand
+  , Path (..)
+  , pathName
+  , PathFlags (..)
+  , pathCommand
   , liftOptions
   , yesNoOpt
   ) where
@@ -142,6 +147,7 @@ import Distribution.PackageDescription
   , LibraryName (..)
   , RepoKind (..)
   )
+import Distribution.PackageDescription.Check (CheckExplanationIDString)
 import Distribution.Parsec
   ( parsecCommaList
   )
@@ -167,6 +173,7 @@ import Distribution.Simple.Flag
   , flagToMaybe
   , fromFlagOrDefault
   , maybeToFlag
+  , mergeListFlag
   , toFlag
   )
 import Distribution.Simple.InstallDirs
@@ -282,8 +289,10 @@ globalCommand commands =
               , "gen-bounds"
               , "outdated"
               , "haddock"
+              , "haddock-project"
               , "hscolour"
               , "exec"
+              , "path"
               , "new-build"
               , "new-configure"
               , "new-repl"
@@ -297,6 +306,7 @@ globalCommand commands =
               , "new-install"
               , "new-clean"
               , "new-sdist"
+              , "new-haddock-project"
               , "list-bin"
               , -- v1 commands, stateful style
                 "v1-build"
@@ -325,6 +335,7 @@ globalCommand commands =
               , "v2-test"
               , "v2-bench"
               , "v2-haddock"
+              , "v2-haddock-project"
               , "v2-exec"
               , "v2-update"
               , "v2-install"
@@ -343,6 +354,7 @@ globalCommand commands =
             ++ unlines
               ( [ startGroup "global"
                 , addCmd "user-config"
+                , addCmd "path"
                 , addCmd "help"
                 , par
                 , startGroup "package database"
@@ -671,6 +683,11 @@ filterConfigureFlags flags cabalLibVersion
           -- We add a Cabal>=3.11 constraint before solving when multi-repl is
           -- enabled, so this should never trigger.
           configPromisedDependencies = assert (null $ configPromisedDependencies flags) []
+        , -- Cabal < 3.11 does not understand '--coverage-for', which is OK
+          -- because previous versions of Cabal using coverage implied
+          -- whole-package builds (cuz_coverage), and determine the path to
+          -- libraries mix dirs from the testsuite root with a small hack.
+          configCoverageFor = NoFlag
         }
 
     flags_3_7_0 =
@@ -1531,6 +1548,56 @@ genBoundsCommand =
     }
 
 -- ------------------------------------------------------------
+-- Check command
+-- ------------------------------------------------------------
+
+data CheckFlags = CheckFlags
+  { checkVerbosity :: Flag Verbosity
+  , checkIgnore :: [CheckExplanationIDString]
+  }
+  deriving (Show, Typeable)
+
+defaultCheckFlags :: CheckFlags
+defaultCheckFlags =
+  CheckFlags
+    { checkVerbosity = Flag normal
+    , checkIgnore = []
+    }
+
+checkCommand :: CommandUI CheckFlags
+checkCommand =
+  CommandUI
+    { commandName = "check"
+    , commandSynopsis = "Check the package for common mistakes."
+    , commandDescription = Just $ \_ ->
+        wrapText $
+          "Expects a .cabal package file in the current directory.\n"
+            ++ "\n"
+            ++ "Some checks correspond to the requirements to packages on Hackage. "
+            ++ "If no `Error` is reported, Hackage should accept the "
+            ++ "package. If errors are present, `check` exits with 1 and Hackage "
+            ++ "will refuse the package.\n"
+    , commandNotes = Nothing
+    , commandUsage = usageFlags "check"
+    , commandDefaultFlags = defaultCheckFlags
+    , commandOptions = checkOptions'
+    }
+
+checkOptions' :: ShowOrParseArgs -> [OptionField CheckFlags]
+checkOptions' _showOrParseArgs =
+  [ optionVerbosity
+      checkVerbosity
+      (\v flags -> flags{checkVerbosity = v})
+  , option
+      ['i']
+      ["ignore"]
+      "ignore a specific warning (e.g. --ignore=missing-upper-bounds)"
+      checkIgnore
+      (\v c -> c{checkIgnore = v ++ checkIgnore c})
+      (reqArg' "WARNING" (: []) (const []))
+  ]
+
+-- ------------------------------------------------------------
 
 -- * Update command
 
@@ -1560,25 +1627,6 @@ cleanCommand =
   Cabal.cleanCommand
     { commandUsage = \pname ->
         "Usage: " ++ pname ++ " v1-clean [FLAGS]\n"
-    }
-
-checkCommand :: CommandUI (Flag Verbosity)
-checkCommand =
-  CommandUI
-    { commandName = "check"
-    , commandSynopsis = "Check the package for common mistakes."
-    , commandDescription = Just $ \_ ->
-        wrapText $
-          "Expects a .cabal package file in the current directory.\n"
-            ++ "\n"
-            ++ "Some checks correspond to the requirements to packages on Hackage. "
-            ++ "If no `Error` is reported, Hackage should accept the "
-            ++ "package. If errors are present, `check` exits with 1 and Hackage "
-            ++ "will refuse the package.\n"
-    , commandNotes = Nothing
-    , commandUsage = usageFlags "check"
-    , commandDefaultFlags = toFlag normal
-    , commandOptions = \_ -> [optionVerbosity id const]
     }
 
 formatCommand :: CommandUI (Flag Verbosity)
@@ -3159,10 +3207,6 @@ initOptions _ =
         ("Cannot parse dependencies: " ++)
         (parsecCommaList parsec)
 
-    mergeListFlag :: Flag [a] -> Flag [a] -> Flag [a]
-    mergeListFlag currentFlags v =
-      Flag $ concat (flagToList currentFlags ++ flagToList v)
-
 -- ------------------------------------------------------------
 
 -- * Copy and Register
@@ -3319,6 +3363,73 @@ userConfigCommand =
             (reqArg' "CONFIGLINE" (Flag . (: [])) (fromMaybe [] . flagToMaybe))
         ]
     }
+
+-- ------------------------------------------------------------
+
+-- * Dirs
+
+-- ------------------------------------------------------------
+
+-- | A path that can be retrieved by the @cabal path@ command.
+data Path
+  = PathCacheDir
+  | PathLogsDir
+  | PathStoreDir
+  | PathConfigFile
+  | PathInstallDir
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | The configuration name for this path.
+pathName :: Path -> String
+pathName PathCacheDir = "cache-dir"
+pathName PathLogsDir = "logs-dir"
+pathName PathStoreDir = "store-dir"
+pathName PathConfigFile = "config-file"
+pathName PathInstallDir = "installdir"
+
+data PathFlags = PathFlags
+  { pathVerbosity :: Flag Verbosity
+  , pathDirs :: Flag [Path]
+  }
+  deriving (Generic)
+
+instance Monoid PathFlags where
+  mempty =
+    PathFlags
+      { pathVerbosity = toFlag normal
+      , pathDirs = toFlag []
+      }
+  mappend = (<>)
+
+instance Semigroup PathFlags where
+  (<>) = gmappend
+
+pathCommand :: CommandUI PathFlags
+pathCommand =
+  CommandUI
+    { commandName = "path"
+    , commandSynopsis = "Display paths used by cabal."
+    , commandDescription = Just $ \_ ->
+        wrapText $
+          "This command prints the directories that are used by cabal,"
+            ++ " taking into account the contents of the configuration file and any"
+            ++ " environment variables."
+    , commandNotes = Nothing
+    , commandUsage = \pname -> "Usage: " ++ pname ++ " path\n"
+    , commandDefaultFlags = mempty
+    , commandOptions = \_ ->
+        map pathOption [minBound .. maxBound]
+          ++ [optionVerbosity pathVerbosity (\v flags -> flags{pathVerbosity = v})]
+    }
+  where
+    pathOption s =
+      option
+        []
+        [pathName s]
+        ("Print " <> pathName s)
+        pathDirs
+        (\v flags -> flags{pathDirs = Flag $ concat (flagToList (pathDirs flags) ++ flagToList v)})
+        (noArg (Flag [s]))
 
 -- ------------------------------------------------------------
 

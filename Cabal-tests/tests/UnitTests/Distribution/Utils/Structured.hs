@@ -10,10 +10,8 @@ import Test.Tasty.HUnit              (testCase, (@?=), Assertion)
 import Distribution.SPDX.License       (License)
 import Distribution.Types.VersionRange (VersionRange)
 
-#if MIN_VERSION_base(4,7,0)
 import Distribution.Types.GenericPackageDescription (GenericPackageDescription)
 import Distribution.Types.LocalBuildInfo            (LocalBuildInfo)
-#endif
 
 import UnitTests.Orphans ()
 
@@ -25,16 +23,25 @@ tests = testGroup "Distribution.Utils.Structured"
     , testCase "SPDX.License" $
       md5Check (Proxy :: Proxy License) 0xd3d4a09f517f9f75bc3d16370d5a853a
     -- The difference is in encoding of newtypes
-#if MIN_VERSION_base(4,7,0)
-    , testCase "GenericPackageDescription" $
-      md5Check (Proxy :: Proxy GenericPackageDescription) 0x6ad1e12c6f88291e9b8c131d239eda70
-    , testCase "LocalBuildInfo" $
-      md5Check (Proxy :: Proxy LocalBuildInfo) 0xbc7ac84a9bc43345c812af222c3e5ba0
-#endif
+    , testCase "GenericPackageDescription" $ md5CheckGenericPackageDescription (Proxy :: Proxy GenericPackageDescription)
+    , testCase "LocalBuildInfo" $ md5CheckLocalBuildInfo (Proxy :: Proxy LocalBuildInfo)
     ]
-
--- -------------------------------------------------------------------- --
--- utils
 
 md5Check :: Structured a => Proxy a -> Integer -> Assertion
 md5Check proxy md5Int = structureHash proxy @?= md5FromInteger md5Int
+
+md5CheckGenericPackageDescription :: Proxy GenericPackageDescription -> Assertion
+md5CheckGenericPackageDescription proxy = md5Check proxy
+#if MIN_VERSION_base(4,19,0)
+    0x7559521b9eb2e2fa4a608a86c629dc17
+#else
+    0xa78ea118e2e29b5809d359c9431df3ba
+#endif
+
+md5CheckLocalBuildInfo :: Proxy LocalBuildInfo -> Assertion
+md5CheckLocalBuildInfo proxy = md5Check proxy
+#if MIN_VERSION_base(4,19,0)
+    0x8a8e81b52a34b8610acdcd0b9d488940
+#else
+    0xb53fbd58281a6f329f7b659d91fcd86e
+#endif

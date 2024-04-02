@@ -245,12 +245,13 @@ listPackageSources' verbosity rip cwd pkg_descr pps =
     , -- Data files.
       fmap concat
         . for (dataFiles pkg_descr)
-        $ \filename -> do
-          let srcDataDirRaw = dataDir pkg_descr
-              srcDataDir
-                | null srcDataDirRaw = "."
-                | otherwise = srcDataDirRaw
-          matchDirFileGlobWithDie verbosity rip (specVersion pkg_descr) cwd (srcDataDir </> filename)
+        $ \filename ->
+          do
+            let srcDataDirRaw = dataDir pkg_descr
+                srcDataDir
+                  | null srcDataDirRaw = "."
+                  | otherwise = srcDataDirRaw
+            matchDirFileGlobWithDie verbosity rip (specVersion pkg_descr) cwd (srcDataDir </> filename)
     , -- Extra source files.
       fmap concat . for (extraSrcFiles pkg_descr) $ \fpath ->
         matchDirFileGlobWithDie verbosity rip (specVersion pkg_descr) cwd fpath
@@ -521,7 +522,7 @@ allSourcesBuildInfo verbosity rip cwd bi pps modules = do
   bootFiles <-
     sequenceA
       [ let file = ModuleName.toFilePath module_
-            fileExts = ["hs-boot", "lhs-boot"]
+            fileExts = builtinHaskellBootSuffixes
          in findFileCwdWithExtension cwd fileExts (map getSymbolicPath (hsSourceDirs bi)) file
       | module_ <- modules ++ otherModules bi
       ]
@@ -539,7 +540,7 @@ allSourcesBuildInfo verbosity rip cwd bi pps modules = do
     nonEmpty' x _ [] = x
     nonEmpty' _ f xs = f xs
 
-    suffixes = ppSuffixes pps ++ ["hs", "lhs", "hsig", "lhsig"]
+    suffixes = ppSuffixes pps ++ builtinHaskellSuffixes
 
     notFound :: ModuleName -> IO [FilePath]
     notFound m =

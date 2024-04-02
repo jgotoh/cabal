@@ -24,7 +24,6 @@ import Prelude ()
 import Distribution.Client.Utils.Parsec (renderParseError)
 import Distribution.PackageDescription (GenericPackageDescription)
 import Distribution.PackageDescription.Check
-import Distribution.PackageDescription.Configuration (flattenPackageDescription)
 import Distribution.PackageDescription.Parsec
   ( parseGenericPackageDescription
   , runParseResult
@@ -60,28 +59,22 @@ readGenericPackageDescriptionCheck verbosity fpath = do
 -- is fit to upload to Hackage, @False@ otherwise.
 -- Note: must be called with the CWD set to the directory containing
 -- the '.cabal' file.
-check :: Verbosity -> IO Bool
-check verbosity = do
+check
+  :: Verbosity
+  -> [CheckExplanationIDString]
+  -- ^ List of check-ids in String form
+  -- (e.g. @invalid-path-win@) to ignore.
+  -> IO Bool
+check verbosity ignores = do
   pdfile <- defaultPackageDesc verbosity
   (ws, ppd) <- readGenericPackageDescriptionCheck verbosity pdfile
   -- convert parse warnings into PackageChecks
   let ws' = map (wrapParseWarning pdfile) ws
-  -- flatten the generic package description into a regular package
-  -- description
-  -- TODO: this may give more warnings than it should give;
-  --       consider two branches of a condition, one saying
-  --          ghc-options: -Wall
-  --       and the other
-  --          ghc-options: -Werror
-  --      joined into
-  --          ghc-options: -Wall -Werror
-  --      checkPackages will yield a warning on the last line, but it
-  --      would not on each individual branch.
-  --      However, this is the same way hackage does it, so we will yield
-  --      the exact same errors as it will.
-  let pkg_desc = flattenPackageDescription ppd
-  ioChecks <- checkPackageFiles verbosity pkg_desc "."
-  let packageChecks = ioChecks ++ checkPackage ppd (Just pkg_desc) ++ ws'
+  ioChecks <- checkPackageFilesGPD verbosity ppd "."
+  let packageChecksPrim = ioChecks ++ checkPackage ppd ++ ws'
+      (packageChecks, unrecs) = filterPackageChecksByIdString packageChecksPrim ignores
+
+  CM.mapM_ (\s -> warn verbosity ("Unrecognised ignore \"" ++ s ++ "\"")) unrecs
 
   CM.mapM_ (outputGroupCheck verbosity) (groupChecks packageChecks)
 

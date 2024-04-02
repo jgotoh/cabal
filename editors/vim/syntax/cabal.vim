@@ -39,6 +39,7 @@ syn keyword cabalLanguage contained
   \ Haskell98
   \ Haskell2010
   \ GHC2021
+  \ GHC2024
 
 " To update this in Cabal, `cabal repl Cabal` and:
 " >>> :m *Distribution.PackageDescription.FieldGrammar
@@ -209,6 +210,7 @@ syn keyword cabalExtension contained
   \ LexicalNegation
   \ LiberalTypeSynonyms
   \ LinearTypes
+  \ ListTuplePuns
   \ RequiredTypeArguments
   \ MagicHash
   \ MonadComprehensions
@@ -268,6 +270,7 @@ syn keyword cabalExtension contained
   \ TraditionalRecordSyntax
   \ TransformListComp
   \ TupleSections
+  \ TypeAbstractions
   \ TypeApplications
   \ TypeData
   \ TypeFamilies
@@ -408,6 +411,7 @@ syn keyword cabalExtension contained
   \ NoTraditionalRecordSyntax
   \ NoTransformListComp
   \ NoTupleSections
+  \ NoTypeAbstractions
   \ NoTypeApplications
   \ NoTypeData
   \ NoTypeFamilies

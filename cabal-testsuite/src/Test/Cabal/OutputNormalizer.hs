@@ -36,8 +36,8 @@ normalizeOutput nenv =
     -- string search-replace.  Make sure we do this before backslash
     -- normalization!
   . resub (posixRegexEscape (normalizerGblTmpDir nenv) ++ "[a-z0-9\\.-]+") "<GBLTMPDIR>" -- note, after TMPDIR
-  . resub (posixRegexEscape (normalizerRoot nenv)) "<ROOT>/"
-  . resub (posixRegexEscape (normalizerTmpDir nenv)) "<TMPDIR>/"
+  . resub (posixRegexEscape (normalizerTmpDir nenv)) "<ROOT>/"
+  . resub (posixRegexEscape (normalizerCanonicalTmpDir nenv)) "<ROOT>/" -- before normalizerTmpDir
   . appEndo (F.fold (map (Endo . packageIdRegex) (normalizerKnownPackages nenv)))
     -- Look for 0.1/installed-0d6uzW7Ubh1Fb4TB5oeQ3G
     -- These installed packages will vary depending on GHC version
@@ -58,7 +58,9 @@ normalizeOutput nenv =
   . (if normalizerGhcVersion nenv /= nullVersion
         then resub (posixRegexEscape (display (normalizerGhcVersion nenv))
                         -- Also glob the date, for nightly GHC builds
-                        ++ "(\\.[0-9]+)?")
+                        ++ "(\\.[0-9]+)?"
+                        -- Also glob the ABI hash, for GHCs which support it
+                        ++ "(-[a-z0-9]+)?")
                    "<GHCVER>"
         else id)
   -- hackage-security locks occur non-deterministically
@@ -97,6 +99,9 @@ normalizeOutput nenv =
 data NormalizerEnv = NormalizerEnv
     { normalizerRoot          :: FilePath
     , normalizerTmpDir        :: FilePath
+    , normalizerCanonicalTmpDir :: FilePath
+    -- ^ May differ from 'normalizerTmpDir', especially e.g. on macos, where
+    -- `/var` is a symlink for `/private/var`.
     , normalizerGblTmpDir     :: FilePath
     , normalizerGhcVersion    :: Version
     , normalizerKnownPackages :: [PackageId]

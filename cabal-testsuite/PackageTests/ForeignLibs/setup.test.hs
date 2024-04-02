@@ -17,6 +17,7 @@ import Distribution.Simple.Program.Types
 import Distribution.System
 import Distribution.Verbosity
 import Distribution.Version
+import System.Directory
 
 import Test.Cabal.Prelude
 
@@ -27,8 +28,9 @@ main = setupAndCabalTest . recordMode DoNotRecord $ do
   -- Foreign libraries don't work with GHC 7.6 and earlier
   skipUnlessGhcVersion ">= 7.8"
   win <- isWindows
-  ghc94 <- isGhcVersion "== 9.4.*"
-  expectBrokenIf (win && ghc94) 8451 $
+  ghc94 <- isGhcVersion ">= 9.4.1"
+  ghc844 <- isGhcVersion "== 8.4.4"
+  expectBrokenIf (ghc844 || (win && ghc94)) 8451 $
     withPackageDb $ do
         setup_install []
         setup "copy" [] -- regression test #4156

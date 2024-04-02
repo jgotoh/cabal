@@ -2,7 +2,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
 -- | Types used while planning how to build everything in a project.
@@ -41,6 +43,9 @@ module Distribution.Client.ProjectPlanning.Types
   , MemoryOrDisk (..)
   , isInplaceBuildStyle
   , CabalFileText
+  , NotPerComponentReason (..)
+  , NotPerComponentBuildType (..)
+  , whyNotPerComponent
 
     -- * Build targets
   , ComponentTarget (..)
@@ -103,6 +108,7 @@ import Distribution.Simple.Setup
   )
 import Distribution.System
 import Distribution.Types.ComponentRequestedSpec
+import qualified Distribution.Types.LocalBuildConfig as LBC
 import Distribution.Types.PackageDescription (PackageDescription (..))
 import Distribution.Types.PkgconfigVersion
 import Distribution.Verbosity (normal)
@@ -115,6 +121,7 @@ import qualified Distribution.Solver.Types.ComponentDeps as CD
 import Distribution.Solver.Types.OptionalStanza
 
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Monoid as Mon
 import System.FilePath ((</>))
@@ -264,23 +271,7 @@ data ElaboratedConfiguredPackage = ElaboratedConfiguredPackage
   , elabInplaceRegisterPackageDBStack :: PackageDBStack
   , elabPkgDescriptionOverride :: Maybe CabalFileText
   , -- TODO: make per-component variants of these flags
-    elabVanillaLib :: Bool
-  , elabSharedLib :: Bool
-  , elabStaticLib :: Bool
-  , elabDynExe :: Bool
-  , elabFullyStaticExe :: Bool
-  , elabGHCiLib :: Bool
-  , elabProfLib :: Bool
-  , elabProfExe :: Bool
-  , elabProfLibDetail :: ProfDetailLevel
-  , elabProfExeDetail :: ProfDetailLevel
-  , elabCoverage :: Bool
-  , elabOptimization :: OptimisationLevel
-  , elabSplitObjs :: Bool
-  , elabSplitSections :: Bool
-  , elabStripLibs :: Bool
-  , elabStripExes :: Bool
-  , elabDebugInfo :: DebugInfoLevel
+    elabBuildOptions :: LBC.BuildOptions
   , elabDumpBuildInfo :: DumpBuildInfo
   , elabProgramPaths :: Map String FilePath
   , elabProgramArgs :: Map String [String]
@@ -542,7 +533,7 @@ elabDistDirParams shared elab =
         ElabPackage _ -> Nothing
     , distParamCompilerId = compilerId (pkgConfigCompiler shared)
     , distParamPlatform = pkgConfigPlatform shared
-    , distParamOptimization = elabOptimization elab
+    , distParamOptimization = LBC.withOptimization $ elabBuildOptions elab
     }
 
 -- | The full set of dependencies which dictate what order we
@@ -738,11 +729,52 @@ data ElaboratedPackage = ElaboratedPackage
   , pkgStanzasEnabled :: OptionalStanzaSet
   -- ^ Which optional stanzas (ie testsuites, benchmarks) will actually
   -- be enabled during the package configure step.
+  , pkgWhyNotPerComponent :: NE.NonEmpty NotPerComponentReason
+  -- ^ Why is this not a per-component build?
   }
   deriving (Eq, Show, Generic)
 
 instance Binary ElaboratedPackage
 instance Structured ElaboratedPackage
+
+-- | Why did we fall-back to a per-package build, instead of using
+-- a per-component build?
+data NotPerComponentReason
+  = -- | The build-type does not support per-component builds.
+    CuzBuildType !NotPerComponentBuildType
+  | -- | The Cabal spec version is too old for per-component builds.
+    CuzCabalSpecVersion
+  | -- | There are no buildable components, so we fall-back to a per-package
+    -- build for error-reporting purposes.
+    CuzNoBuildableComponents
+  | -- | The user passed @--disable-per-component@.
+    CuzDisablePerComponent
+  deriving (Eq, Show, Generic)
+
+data NotPerComponentBuildType
+  = CuzConfigureBuildType
+  | CuzCustomBuildType
+  | CuzMakeBuildType
+  deriving (Eq, Show, Generic)
+
+instance Binary NotPerComponentBuildType
+instance Structured NotPerComponentBuildType
+
+instance Binary NotPerComponentReason
+instance Structured NotPerComponentReason
+
+-- | Display the reason we had to fall-back to a per-package build instead
+-- of a per-component build.
+whyNotPerComponent :: NotPerComponentReason -> String
+whyNotPerComponent = \case
+  CuzBuildType bt ->
+    "build-type is " ++ case bt of
+      CuzConfigureBuildType -> "Configure"
+      CuzCustomBuildType -> "Custom"
+      CuzMakeBuildType -> "Make"
+  CuzCabalSpecVersion -> "cabal-version is less than 1.8"
+  CuzNoBuildableComponents -> "there are no buildable components"
+  CuzDisablePerComponent -> "you passed --disable-per-component"
 
 -- | See 'elabOrderDependencies'.  This gives the unflattened version,
 -- which can be useful in some circumstances.

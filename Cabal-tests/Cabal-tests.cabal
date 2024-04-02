@@ -1,7 +1,7 @@
 cabal-version: 2.2
 name:          Cabal-tests
 version:       3
-copyright:     2003-2023, Cabal Development Team (see AUTHORS file)
+copyright:     2003-2024, Cabal Development Team (see AUTHORS file)
 license:       BSD-3-Clause
 license-file:  LICENSE
 author:        Cabal Development Team <cabal-devel@haskell.org>
@@ -18,6 +18,12 @@ source-repository head
   location: https://github.com/haskell/cabal/
   subdir:   Cabal-tests
 
+-- Common utilities which can be used by all tests.
+library
+  hs-source-dirs: lib
+  exposed-modules: Test.Utils.TempTestDir
+  build-depends: base, directory, Cabal
+
 -- Small, fast running tests.
 test-suite unit-tests
   type:             exitcode-stdio-1.0
@@ -29,6 +35,7 @@ test-suite unit-tests
     UnitTests.Distribution.Compat.Graph
     UnitTests.Distribution.Compat.Time
     UnitTests.Distribution.Described
+    UnitTests.Distribution.PackageDescription.Check
     UnitTests.Distribution.PkgconfigVersion
     UnitTests.Distribution.Simple.Command
     UnitTests.Distribution.Simple.Glob
@@ -58,9 +65,10 @@ test-suite unit-tests
     , Cabal-described
     , Cabal-syntax
     , Cabal-QuickCheck
+    , Cabal-tests
     , containers
     , deepseq
-    , Diff                >=0.4   && <0.5
+    , Diff                >=0.4   && <0.6
     , directory
     , filepath
     , integer-logarithms  >=1.0.2 && <1.1
@@ -68,7 +76,7 @@ test-suite unit-tests
     , QuickCheck          >=2.14  && <2.15
     , rere                >=0.1   && <0.3
     , tagged
-    , tasty               >=1.2.3 && <1.5
+    , tasty               >=1.2.3 && <1.6
     , tasty-hunit
     , tasty-quickcheck
     , temporary
@@ -84,14 +92,14 @@ test-suite parser-tests
   main-is:          ParserTests.hs
   build-depends:
       base
-    , base-compat       >=0.11.0  && <0.13
+    , base-compat       >=0.11.0  && <0.14
     , bytestring
     , Cabal-syntax
     , Cabal-tree-diff
-    , Diff              >=0.4     && <0.5
+    , Diff              >=0.4     && <0.6
     , directory
     , filepath
-    , tasty             >=1.2.3   && <1.5
+    , tasty             >=1.2.3   && <1.6
     , tasty-golden      >=2.3.1.1 && <2.4
     , tasty-hunit
     , tasty-quickcheck
@@ -109,10 +117,10 @@ test-suite check-tests
     , bytestring
     , Cabal
     , Cabal-syntax
-    , Diff          >=0.4     && <0.5
+    , Diff          >=0.4     && <0.6
     , directory
     , filepath
-    , tasty         >=1.2.3   && <1.5
+    , tasty         >=1.2.3   && <1.6
     , tasty-expected-failure
     , tasty-golden  >=2.3.1.1 && <2.4
 
@@ -155,12 +163,12 @@ test-suite hackage-tests
     , filepath
 
   build-depends:
-      base-compat           >=0.11.0   && <0.13
-    , base-orphans          >=0.6      && <0.9
+      base-compat           >=0.11.0   && <0.14
+    , base-orphans          >=0.6      && <0.10
     , clock                 >=0.8      && <0.9
-    , optparse-applicative  >=0.13.2.0 && <0.17
+    , optparse-applicative  >=0.13.2.0 && <0.19
     , stm                   >=2.4.5.0  && <2.6
-    , tar                   >=0.5.0.3  && <0.6
+    , tar                   >=0.5.0.3  && <0.7
     , tree-diff             >=0.1      && <0.4
 
   ghc-options:        -Wall -rtsopts -threaded
@@ -178,7 +186,7 @@ test-suite rpmvercmp
 
   build-depends:
       QuickCheck
-    , tasty             >=1.2.3 && <1.5
+    , tasty             >=1.2.3 && <1.6
     , tasty-hunit
     , tasty-quickcheck
 
@@ -197,10 +205,10 @@ test-suite no-thunks-test
       base
     , bytestring
     , Cabal-syntax
-    , tasty        >=1.2.3 && <1.5
+    , tasty        >=1.2.3 && <1.6
     , tasty-hunit
 
   -- this is test is buildable on old GHCs
   -- but it doesn't do anything.
   if impl(ghc >=8.6)
-    build-depends: nothunks >=0.1.1.0 && <0.2
+    build-depends: nothunks >=0.1.1.0 && <0.3

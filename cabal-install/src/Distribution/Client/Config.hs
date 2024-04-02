@@ -531,6 +531,7 @@ instance Semigroup SavedConfig where
           , configDumpBuildInfo = combine configDumpBuildInfo
           , configAllowDependingOnPrivateLibs =
               combine configAllowDependingOnPrivateLibs
+          , configCoverageFor = combine configCoverageFor
           }
         where
           combine = combine' savedConfigureFlags
@@ -1538,6 +1539,14 @@ parseConfig src initial = \str -> do
                   , configConfigureArgs =
                       splitMultiPath
                         (configConfigureArgs scf)
+                  }
+        , savedGlobalFlags =
+            let sgf = savedGlobalFlags conf
+             in sgf
+                  { globalProgPathExtra =
+                      toNubList $
+                        splitMultiPath
+                          (fromNubList $ globalProgPathExtra sgf)
                   }
         }
 
