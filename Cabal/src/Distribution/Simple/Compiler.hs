@@ -77,6 +77,7 @@ module Distribution.Simple.Compiler
   , showProfDetailLevel
   ) where
 
+import Distribution.Compat.CharParsing
 import Distribution.Compat.Prelude
 import Distribution.Parsec
 import Distribution.Pretty
@@ -87,6 +88,7 @@ import Distribution.Simple.Utils
 import Distribution.Version
 import Language.Haskell.Extension
 
+import Data.Bool (bool)
 import qualified Data.Map as Map (lookup)
 import System.Directory (canonicalizePath)
 
@@ -248,21 +250,27 @@ instance Parsec OptimisationLevel where
   parsec = parsecOptimisationLevel
 
 parsecOptimisationLevel :: CabalParsing m => m OptimisationLevel
-parsecOptimisationLevel = flagToOptimisationLevel <$> pure <$> parsecToken
+parsecOptimisationLevel = boolParser <|> intParser
+  where
+    boolParser = (bool NoOptimisation NormalOptimisation) <$> parsec
+    intParser = intToOptimisationLevel <$> integral
 
 flagToOptimisationLevel :: Maybe String -> OptimisationLevel
 flagToOptimisationLevel Nothing = NormalOptimisation
 flagToOptimisationLevel (Just s) = case reads s of
-  [(i, "")]
-    | i >= fromEnum (minBound :: OptimisationLevel)
-        && i <= fromEnum (maxBound :: OptimisationLevel) ->
-        toEnum i
-    | otherwise ->
-        error $
-          "Bad optimisation level: "
-            ++ show i
-            ++ ". Valid values are 0..2"
+  [(i, "")] -> intToOptimisationLevel i
   _ -> error $ "Can't parse optimisation level " ++ s
+
+intToOptimisationLevel :: Int -> OptimisationLevel
+intToOptimisationLevel i
+  | i >= fromEnum (minBound :: OptimisationLevel)
+      && i <= fromEnum (maxBound :: OptimisationLevel) =
+      toEnum i
+  | otherwise =
+      error $
+        "Bad optimisation level: "
+          ++ show i
+          ++ ". Valid values are 0..2"
 
 -- ------------------------------------------------------------
 
