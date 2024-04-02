@@ -8,11 +8,13 @@ module Distribution.Client.ProjectConfig.FieldGrammar
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Set as Set
+import Distribution.CabalSpecVersion (CabalSpecVersion (..))
 import qualified Distribution.Client.ProjectConfig.Lens as L
 import Distribution.Client.ProjectConfig.Types (PackageConfig (..), ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance (..), ProjectConfigShared (..))
 import Distribution.Client.Utils.Parsec
 import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
+import Distribution.Simple.Flag
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 
@@ -140,7 +142,7 @@ packageConfigFieldGrammar knownPrograms =
     <*> optionalFieldDef "library-stripping" L.packageConfigStripLibs mempty
     <*> optionalFieldDef "tests" L.packageConfigTests mempty
     <*> optionalFieldDef "benchmarks" L.packageConfigBenchmarks mempty
-    <*> optionalFieldDef "coverage" L.packageConfigCoverage mempty
+    <*> packageConfigCoverageGrammar
     <*> optionalFieldDef "relocatable" L.packageConfigRelocatable mempty
     <*> optionalFieldDef "debug-info" L.packageConfigDebugInfo mempty
     <*> optionalFieldDef "build-info" L.packageConfigDumpBuildInfo mempty
@@ -176,3 +178,10 @@ packageConfigFieldGrammar knownPrograms =
     -- When declared at top level (packageConfigLocalPackages), the PackageConfig must contain a program-options stanza/program-locations for these fields.
     <* traverse_ (knownField . BS.pack . (<> "-options")) knownPrograms
     <* traverse_ (knownField . BS.pack . (<> "-location")) knownPrograms
+
+packageConfigCoverageGrammar :: ParsecFieldGrammar PackageConfig (Distribution.Simple.Flag.Flag Bool)
+packageConfigCoverageGrammar =
+  (<>)
+    <$> optionalFieldDef "library-coverage" L.packageConfigCoverage mempty
+      ^^^ deprecatedSince CabalSpecV1_22 "Please use 'coverage' field instead."
+    <*> optionalFieldDef "coverage" L.packageConfigCoverage mempty
