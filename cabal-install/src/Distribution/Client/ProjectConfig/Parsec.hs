@@ -36,12 +36,12 @@ import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
 
 -- AST type
-import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), PWarning, SectionArg (..), readFields', showPWarning)
+import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), SectionArg (..), readFields', showPWarning)
 import Distribution.Fields.LexerMonad (toPWarnings)
 import Distribution.Parsec (CabalParsing, PError (..), ParsecParser, parsec, parsecFilePath, parsecToken, runParsecParser)
 import Distribution.Parsec.Position (Position (..), zeroPos)
 import Distribution.Parsec.Warning (PWarnType (..))
-import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, lookupKnownProgram, knownPrograms)
+import Distribution.Simple.Program.Db (ProgramDb, defaultProgramDb, knownPrograms, lookupKnownProgram)
 import Distribution.Simple.Program.Types (programName)
 import Distribution.Simple.Setup (Flag (..))
 import Distribution.Types.CondTree (CondBranch (..), CondTree (..))
@@ -95,7 +95,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
                   let res' = case result of
                         Right cfg -> pure cfg
                         Left (_, errors) -> do
-                          traverse_ (\(PError pos str) -> parseFailure pos str) errors
+                          traverse_ (\(PError errPos str) -> parseFailure errPos str) errors
                           parseFatalFailure pos $ "Failed to parse import " ++ importLoc
 
                   rest <- go [] xs
@@ -170,6 +170,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
 
     programDb = defaultProgramDb
 
+knownProgramNames :: ProgramDb -> [String]
 knownProgramNames programDb = (programName . fst) <$> knownPrograms programDb
 
 -- | Monad in which sections are parsed

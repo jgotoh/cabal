@@ -30,7 +30,7 @@ instance Parsec WriteGhcEnvironmentFilesPolicy where
       "never" -> return NeverWriteGhcEnvironmentFiles
       "ghc8.4.4+" -> return WriteGhcEnvironmentFilesOnlyForGhc844AndNewer
       policy ->
-        P.unexpected
-          $ "Cannot parse the GHC environment file write policy '"
-          <> policy
-          <> "'"
+        P.unexpected $
+          "Cannot parse the GHC environment file write policy '"
+            <> policy
+            <> "'"

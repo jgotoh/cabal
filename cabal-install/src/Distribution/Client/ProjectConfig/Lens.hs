@@ -36,7 +36,7 @@ import Distribution.Simple.Setup
   , TestShowDetails (..)
   )
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
-import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..), OnlyConstrained (..))
+import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), OnlyConstrained (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )

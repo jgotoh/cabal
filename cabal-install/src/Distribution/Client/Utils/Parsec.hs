@@ -47,11 +47,11 @@ renderParseError
   -> [PWarning]
   -> String
 renderParseError filepath contents errors warnings =
-  unlines
-    $ [ "Errors encountered when parsing cabal file " <> filepath <> ":"
-      ]
-    ++ renderedErrors
-    ++ renderedWarnings
+  unlines $
+    [ "Errors encountered when parsing cabal file " <> filepath <> ":"
+    ]
+      ++ renderedErrors
+      ++ renderedWarnings
   where
     filepath' = normalise filepath
 

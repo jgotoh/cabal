@@ -78,7 +78,6 @@ import Distribution.Client.VCS
   , validateSourceRepos
   )
 
-import GHC.Stack (HasCallStack, callStack)
 import Distribution.Client.BuildReports.Types
   ( ReportLevel (..)
   )
@@ -104,6 +103,7 @@ import Distribution.Client.HttpUtils
   )
 import Distribution.Client.Types
 import Distribution.Client.Utils.Parsec (renderParseError)
+import GHC.Stack (HasCallStack, callStack)
 
 import Distribution.Simple.Errors
 import Distribution.Simple.PackageDescription (flattenDups)
