@@ -107,7 +107,7 @@ projectConfigSharedFieldGrammar source =
     <*> pure mempty -- cli flag: projectConfigPerComponent
     <*> pure mempty -- cli flag: projectConfigIndependentGoals
     <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
-    <*> monoidalFieldAla "extra-prog-path" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
+    <*> monoidalFieldAla "extra-prog-path-shared-only" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
     <*> monoidalField "multi-repl" L.projectConfigMultiRepl
 
 packageConfigFieldGrammar :: [String] -> ParsecFieldGrammar' PackageConfig

@@ -30,4 +30,5 @@ allow-boot-library-installs: True
 reject-unconstrained-dependencies: all
 prefer-oldest: True
 extra-prog-path: /foo/bar, /baz/quux
+extra-prog-path-shared-only: /foo/bar, /baz/quux
 multi-repl: True

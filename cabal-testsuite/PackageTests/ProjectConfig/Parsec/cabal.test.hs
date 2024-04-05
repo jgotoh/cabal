@@ -186,9 +186,6 @@ testProjectConfigShared = do
     projectConfigIndependentGoals = mempty -- cli only
     projectConfigPreferOldest = Flag (PreferOldest True)
     projectConfigProgPathExtra = toNubList ["/foo/bar", "/baz/quux"]
-    -- TODO ^ I need to investigate this. The project file of this test says the following: extra-prog-path: /foo/bar, /baz/quux
-    -- but the legacy parser always parses an empty list, maybe we have a bug here
-    -- this also does not work if using a single path such as extra-prog-path: /foo/bar, list is always empty
     projectConfigMultiRepl = toFlag True
 
 testProjectConfigProvenance :: TestM ()
