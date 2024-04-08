@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 
@@ -85,12 +86,15 @@ import Prelude ()
 
 import Distribution.Compiler
 import Distribution.Simple.Utils
+import Distribution.Utils.Path
 import Distribution.Version
+
 import Language.Haskell.Extension
 
 import Data.Bool (bool)
 import qualified Data.Map as Map (lookup)
 import System.Directory (canonicalizePath)
+import System.FilePath (isRelative)
 
 data Compiler = Compiler
   { compilerId :: CompilerId
@@ -179,7 +183,8 @@ compilerInfo c =
 data PackageDB
   = GlobalPackageDB
   | UserPackageDB
-  | SpecificPackageDB FilePath
+  | -- | NB: the path might be relative or it might be absolute
+    SpecificPackageDB FilePath
   deriving (Eq, Generic, Ord, Show, Read, Typeable)
 
 instance Binary PackageDB
@@ -219,14 +224,24 @@ registrationPackageDB dbs = case safeLast dbs of
   Just p -> p
 
 -- | Make package paths absolute
-absolutePackageDBPaths :: PackageDBStack -> IO PackageDBStack
-absolutePackageDBPaths = traverse absolutePackageDBPath
+absolutePackageDBPaths
+  :: Maybe (SymbolicPath CWD (Dir Pkg))
+  -> PackageDBStack
+  -> IO PackageDBStack
+absolutePackageDBPaths mbWorkDir = traverse $ absolutePackageDBPath mbWorkDir
 
-absolutePackageDBPath :: PackageDB -> IO PackageDB
-absolutePackageDBPath GlobalPackageDB = return GlobalPackageDB
-absolutePackageDBPath UserPackageDB = return UserPackageDB
-absolutePackageDBPath (SpecificPackageDB db) =
-  SpecificPackageDB `liftM` canonicalizePath db
+absolutePackageDBPath
+  :: Maybe (SymbolicPath CWD (Dir Pkg))
+  -> PackageDB
+  -> IO PackageDB
+absolutePackageDBPath _ GlobalPackageDB = return GlobalPackageDB
+absolutePackageDBPath _ UserPackageDB = return UserPackageDB
+absolutePackageDBPath mbWorkDir (SpecificPackageDB db) = do
+  let db' =
+        if isRelative db
+          then interpretSymbolicPath mbWorkDir (makeRelativePathEx db)
+          else db
+  SpecificPackageDB <$> canonicalizePath db'
 
 -- ------------------------------------------------------------
 
