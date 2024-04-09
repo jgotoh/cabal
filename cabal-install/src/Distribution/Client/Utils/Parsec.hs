@@ -158,7 +158,7 @@ newtype NubList' sep b a = NubList' {_getNubList :: NubList a}
 -- >>> :t alaNubList VCat
 -- alaNubList VCat :: NubList a -> NubList' VCat (Identity a) a
 --
--- >>> :t alaNubList' FSep Token :: NubList String -> NubList' FSep Token String
+-- >>> :t alaNubList' FSep Token
 -- alaNubList' FSep Token :: NubList String -> NubList' FSep Token String
 --
 -- >>> unpack' (alaNubList' FSep Token) <$> eitherParsec "foo bar foo"
