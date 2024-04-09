@@ -3,6 +3,7 @@
 
 import qualified Data.ByteString as BS
 import Data.Either
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
@@ -26,6 +27,7 @@ import Distribution.Simple.Flag
 import Distribution.Simple.InstallDirs (toPathTemplate)
 import Distribution.Simple.Setup (DumpBuildInfo (..), Flag, HaddockTarget (..), TestShowDetails (..))
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
+import Distribution.Solver.Types.ProjectConfigPath (ProjectConfigPath (..))
 import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), OnlyConstrained (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
 import Distribution.Types.CondTree (CondTree (..))
 import Distribution.Types.Flag (FlagAssignment (..), FlagName, mkFlagAssignment)
@@ -165,7 +167,7 @@ testProjectConfigShared = do
       let
         bar = fromRight (error "error parsing bar") $ readUserConstraint "bar == 2.1"
         barFlags = fromRight (error "error parsing bar flags") $ readUserConstraint "bar +foo -baz"
-        source = ConstraintSourceProjectConfig projectFileFp
+        source = ConstraintSourceProjectConfig $ ProjectConfigPath $ "cabal.project" :| []
        in
         [(bar, source), (barFlags, source)]
     projectConfigPreferences = [PackageVersionConstraint (mkPackageName "foo") (ThisVersion (mkVersion [0, 9])), PackageVersionConstraint (mkPackageName "baz") (LaterVersion (mkVersion [2, 0]))]
@@ -193,7 +195,7 @@ testProjectConfigProvenance = do
   let rootFp = "empty"
   testDir <- testDirInfo rootFp "cabal.project"
   let
-    expected = Set.singleton (Explicit (testDirProjectConfigFp testDir))
+    expected = Set.singleton (Explicit (ProjectConfigPath $ "cabal.project" :| []))
   (config, legacy) <- readConfigDefault rootFp
   assertConfig expected config legacy (projectConfigProvenance . condTreeData)
 

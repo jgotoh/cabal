@@ -16,6 +16,7 @@ import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.Simple.Flag
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
+import Distribution.Solver.Types.ProjectConfigPath
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 
 -- TODO check usages of monoidalField: "Field which can be define multiple times, and the results are mappended."
@@ -24,7 +25,7 @@ import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..
 -- TODO check if ^^^ availableSince can be used in some of the fields (see FieldGrammar of PackageDescription)
 
 -- TODO ParsecFieldGrammar' is a Grammar implementation, we should just use abstract FieldGrammar here
-projectConfigFieldGrammar :: FilePath -> [String] -> ParsecFieldGrammar' ProjectConfig
+projectConfigFieldGrammar :: ProjectConfigPath -> [String] -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source knownPrograms =
   ProjectConfig
     <$> monoidalFieldAla "packages" (alaList' FSep Token) L.projectPackages
@@ -69,7 +70,7 @@ projectConfigBuildOnlyFieldGrammar =
     <*> monoidalFieldAla "logs-dir" (alaFlag FilePathNT) L.projectConfigLogsDir
     <*> pure mempty
 
-projectConfigSharedFieldGrammar :: FilePath -> ParsecFieldGrammar' ProjectConfigShared
+projectConfigSharedFieldGrammar :: ProjectConfigPath -> ParsecFieldGrammar' ProjectConfigShared
 projectConfigSharedFieldGrammar source =
   ProjectConfigShared
     <$> optionalFieldDefAla "builddir" (alaFlag FilePathNT) L.projectConfigDistDir mempty -- TODO builddir is not documented

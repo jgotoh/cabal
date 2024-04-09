@@ -762,7 +762,7 @@ readProjectFileSkeleton
       then do
         monitorFiles [monitorFileHashed extensionFile]
         pcs <- liftIO $ readExtensionFile verbosity extensionFile
-        monitorFiles $ map monitorFileHashed (projectSkeletonImports pcs)
+        monitorFiles $ map monitorFileHashed (projectConfigPathRoot <$> projectSkeletonImports pcs)
         unless (legacyPcs == pcs) (error (show callStack ++ "\nParsec: " ++ show pcs ++ "\nLegacy: " ++ show legacyPcs))
         pure pcs
       else do
@@ -771,7 +771,7 @@ readProjectFileSkeleton
     where
       extensionFile = distProjectFile extensionName
       readExtensionFile :: Verbosity -> FilePath -> IO ProjectConfigSkeleton
-      readExtensionFile verbosity' file = readAndParseFile (\bs -> Parsec.parseProjectSkeleton distDownloadSrcDirectory httpTransport verbosity' [] extensionFile bs) verbosity' file
+      readExtensionFile verbosity' file = readAndParseFile (Parsec.parseProject extensionFile distDownloadSrcDirectory httpTransport verbosity' . ProjectConfigToParse) verbosity' file
 
 readAndParseFile
   :: (BS.ByteString -> IO (Parsec.ParseResult a))

@@ -4,6 +4,7 @@
 module Distribution.Client.ProjectConfig.Parsec
   ( -- * Package configuration
     parseProjectSkeleton
+  , parseProject
   , ProjectConfigSkeleton
   , ProjectConfig (..)
 
@@ -23,17 +24,18 @@ import Distribution.Compat.Prelude
 import Distribution.FieldGrammar
 import Distribution.FieldGrammar.Parsec (NamelessField (..), namelessFieldAnn)
 import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
-import Distribution.Simple.Utils (warn)
+import Distribution.Simple.Utils (debug, warn)
 import Distribution.Verbosity
 
 -- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (packageConfigFieldGrammar, projectConfigFieldGrammar)
-import Distribution.Client.ProjectConfig.Legacy (ProjectConfigImport, ProjectConfigSkeleton)
+import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton)
 import qualified Distribution.Client.ProjectConfig.Lens as L
-import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..), ProjectConfigShared (..))
+import Distribution.Client.ProjectConfig.Types (MapLast (..), MapMappend (..), PackageConfig (..), ProjectConfig (..), ProjectConfigShared (..), ProjectConfigToParse (..))
 import Distribution.Client.Types.SourceRepo (sourceRepositoryPackageGrammar)
 import Distribution.Fields.ConfVar (parseConditionConfVar)
 import Distribution.Fields.ParseResult
+import Distribution.Solver.Types.ProjectConfigPath
 
 -- AST type
 import Distribution.Fields (Field (..), FieldLine (..), FieldName, Name (..), SectionArg (..), readFields', showPWarning)
@@ -50,10 +52,12 @@ import Distribution.Types.PackageName (PackageName)
 import Distribution.Utils.Generic (fromUTF8BS, toUTF8BS, validateUTF8)
 
 import qualified Data.ByteString as BS
+import Data.Coerce (coerce)
 import qualified Distribution.Compat.CharParsing as P
-import System.Directory (createDirectoryIfMissing)
-import System.FilePath (isAbsolute, isPathSeparator, makeValid, takeDirectory, (</>))
+import System.Directory (createDirectoryIfMissing, makeAbsolute)
+import System.FilePath (isAbsolute, isPathSeparator, makeValid, splitFileName, (</>))
 import qualified Text.Parsec
+import Text.PrettyPrint (render)
 
 singletonProjectConfigSkeleton :: ProjectConfig -> ProjectConfigSkeleton
 singletonProjectConfigSkeleton x = CondNode x mempty mempty
@@ -76,19 +80,55 @@ readPreprocessFields bs = do
       Nothing -> bs
       Just _ -> toUTF8BS (fromUTF8BS bs)
 
-parseProjectSkeleton :: FilePath -> HttpTransport -> Verbosity -> [ProjectConfigImport] -> FilePath -> BS.ByteString -> IO (ParseResult ProjectConfigSkeleton)
-parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (sanityWalkPCS False =<<) <$> liftPR (go []) (readPreprocessFields bs) -- (ParseUtils.readFields bs)
+-- | Parses a project from its root config file, typically cabal.project.
+parseProject
+  :: FilePath
+  -- ^ The root of the project configuration, typically cabal.project
+  -> FilePath
+  -> HttpTransport
+  -> Verbosity
+  -> ProjectConfigToParse
+  -- ^ The contents of the file to parse
+  -> IO (ParseResult ProjectConfigSkeleton)
+parseProject rootPath cacheDir httpTransport verbosity configToParse = do
+  let (dir, projectFileName) = splitFileName rootPath
+  projectDir <- makeAbsolute dir
+  projectPath <- canonicalizeConfigPath projectDir (ProjectConfigPath $ projectFileName :| [])
+  parseProjectSkeleton cacheDir httpTransport verbosity projectDir projectPath configToParse
+
+parseProjectSkeleton
+  :: FilePath
+  -> HttpTransport
+  -> Verbosity
+  -> FilePath
+  -- ^ The directory of the project configuration, typically the directory of cabal.project
+  -> ProjectConfigPath
+  -- ^ The path of the file being parsed, either the root or an import
+  -> ProjectConfigToParse
+  -- ^ The contents of the file to parse
+  -> IO (ParseResult ProjectConfigSkeleton)
+parseProjectSkeleton cacheDir httpTransport verbosity projectDir source (ProjectConfigToParse bs) = (sanityWalkPCS False =<<) <$> liftPR (go []) (readPreprocessFields bs) -- (ParseUtils.readFields bs)
   where
     go :: [Field Position] -> [Field Position] -> IO (ParseResult ProjectConfigSkeleton)
     go acc (x : xs) = case x of
       (Field (Name pos name) importLines) | name == "import" -> do
         liftPR
           ( \importLoc -> do
-              if (importLoc `elem` seenImports)
-                then pure $ parseFatalFailure pos ("cyclical import of " ++ importLoc)
+              let importLocPath = importLoc `consProjectConfigPath` source
+
+              -- Once we canonicalize the import path, we can check for cyclical imports
+              normLocPath <- canonicalizeConfigPath projectDir importLocPath
+
+              debug verbosity $ "\nimport path, normalized\n=======================\n" ++ render (docProjectConfigPath normLocPath)
+
+              if isCyclicConfigPath normLocPath
+                then pure $ parseFatalFailure pos (render $ cyclicalImportMsg normLocPath)
                 else do
-                  let fs = fmap (\z -> CondNode z [importLoc] mempty) $ fieldsToConfig (reverse acc)
-                  importParseResult <- parseProjectSkeleton cacheDir httpTransport verbosity (importLoc : seenImports) importLoc =<< fetchImportConfig importLoc
+                  normSource <- canonicalizeConfigPath projectDir source
+                  let fs = (\z -> CondNode z [normLocPath] mempty) <$> fieldsToConfig normSource (reverse acc)
+
+                  importParseResult <- parseProjectSkeleton cacheDir httpTransport verbosity projectDir importLocPath . ProjectConfigToParse =<< fetchImportConfig normLocPath
+
                   -- As PError and PWarning do not store the filepath where they occurred, we need to print them here where we still have this information
                   let (warnings, result) = runParseResult importParseResult
                   traverse_ (warn verbosity . showPWarning importLoc) warnings
@@ -104,7 +144,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
           (parseImport pos importLines)
       (Section (Name _pos name) args xs') | name == "if" -> do
         subpcs <- go [] xs'
-        let fs = fmap singletonProjectConfigSkeleton $ fieldsToConfig (reverse acc)
+        let fs = fmap singletonProjectConfigSkeleton $ fieldsToConfig source (reverse acc)
         (elseClauses, rest) <- parseElseClauses xs
         let condNode =
               (\c pcs e -> CondNode mempty mempty [CondBranch c pcs e])
@@ -113,7 +153,9 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
                 <*> elseClauses
         pure . fmap mconcat . sequence $ [fs, condNode, rest]
       _ -> go (x : acc) xs
-    go acc [] = pure . fmap singletonProjectConfigSkeleton . fieldsToConfig $ reverse acc
+    go acc [] = do
+      normSource <- canonicalizeConfigPath projectDir source
+      pure . fmap singletonProjectConfigSkeleton . fieldsToConfig normSource $ reverse acc
 
     parseElseClauses :: [Field Position] -> IO (ParseResult (Maybe ProjectConfigSkeleton), ParseResult ProjectConfigSkeleton)
     parseElseClauses x = case x of
@@ -132,20 +174,30 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
         pure (Just <$> condNode, rest)
       _ -> (\r -> (pure Nothing, r)) <$> go [] x
 
-    parseImport :: Position -> [FieldLine Position] -> ParseResult (ProjectConfigImport)
+    parseImport :: Position -> [FieldLine Position] -> ParseResult FilePath
     parseImport pos lines' = runFieldParser pos (P.many P.anyChar) cabalSpec lines'
 
     -- TODO emit unrecognized field warning on unknown fields, legacy parser does this
-    fieldsToConfig :: [Field Position] -> ParseResult ProjectConfig
-    fieldsToConfig xs = do
+    -- We want a normalized path for @fieldsToConfig@. This eventually surfaces
+    -- in solver rejection messages and build messages "this build was affected
+    -- by the following (project) config files" so we want all paths shown there
+    -- to be relative to the directory of the project, not relative to the file
+    -- they were imported from.
+    fieldsToConfig :: ProjectConfigPath -> [Field Position] -> ParseResult ProjectConfig
+    fieldsToConfig sourceConfigPath xs = do
       let (fs, sectionGroups) = partitionFields xs
           sections = concat sectionGroups
-      config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar source (knownProgramNames programDb))
+      config <- parseFieldGrammar cabalSpec fs (projectConfigFieldGrammar sourceConfigPath (knownProgramNames programDb))
       config' <- view stateConfig <$> execStateT (goSections programDb sections) (SectionS config)
       return config'
 
-    fetchImportConfig :: ProjectConfigImport -> IO BS.ByteString
-    fetchImportConfig pci = case parseURI pci of
+    fetchImportConfig :: ProjectConfigPath -> IO BS.ByteString
+    fetchImportConfig (ProjectConfigPath (pci :| _)) = do
+      debug verbosity $ "fetching import: " ++ pci
+      fetch pci
+
+    fetch :: FilePath -> IO BS.ByteString
+    fetch pci = case parseURI pci of
       Just uri -> do
         let fp = cacheDir </> map (\x -> if isPathSeparator x then '_' else x) (makeValid $ show uri)
         createDirectoryIfMissing True cacheDir
@@ -153,7 +205,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
         BS.readFile fp
       Nothing ->
         BS.readFile $
-          if isAbsolute pci then pci else takeDirectory source </> pci
+          if isAbsolute pci then pci else coerce projectDir </> pci
 
     modifiesCompiler :: ProjectConfig -> Bool
     modifiesCompiler pc = isSet projectConfigHcFlavor || isSet projectConfigHcPath || isSet projectConfigHcPkg
@@ -165,7 +217,7 @@ parseProjectSkeleton cacheDir httpTransport verbosity seenImports source bs = (s
       | underConditional && modifiesCompiler d = parseFatalFailure zeroPos "Cannot set compiler in a conditional clause of a cabal project file"
       | otherwise = mapM_ sanityWalkBranch comps >> pure t
 
-    sanityWalkBranch :: CondBranch ConfVar [ProjectConfigImport] ProjectConfig -> ParseResult ()
+    sanityWalkBranch :: CondBranch ConfVar [ProjectConfigPath] ProjectConfig -> ParseResult ()
     sanityWalkBranch (CondBranch _c t f) = traverse (sanityWalkPCS True) f >> sanityWalkPCS True t >> pure ()
 
     programDb = defaultProgramDb
