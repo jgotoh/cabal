@@ -56,7 +56,7 @@ projectConfigBuildOnlyFieldGrammar =
     <*> pure mempty -- cli flag: projectConfigOnlyDownload
     <*> monoidalFieldAla "build-summary" (alaNubList VCat) L.projectConfigSummaryFile
     <*> optionalFieldDef "build-log" L.projectConfigLogFile mempty
-    <*> pure mempty -- cli flag: projectConfigBuildReports
+    <*> optionalFieldDef "remote-build-reporting" L.projectConfigBuildReports mempty
     <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure mempty
     <*> monoidalFieldAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir
     <*> monoidalFieldAla "jobs" (alaFlag NumJobs) L.projectConfigNumJobs

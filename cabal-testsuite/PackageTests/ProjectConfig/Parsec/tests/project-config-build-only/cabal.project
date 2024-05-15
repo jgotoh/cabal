@@ -1,6 +1,7 @@
 verbose: 2
 build-summary: summaryFile
 build-log: myLog.log
+remote-build-reporting: detailed
 report-planning-failure: True
 symlink-bindir: some-bindir
 jobs: 4

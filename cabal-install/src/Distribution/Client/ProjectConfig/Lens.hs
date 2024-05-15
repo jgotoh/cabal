@@ -4,6 +4,7 @@ import Distribution.Client.Dependency.Types (PreSolver (..))
 import Distribution.Client.IndexUtils.ActiveRepos
   ( ActiveRepos
   )
+import Distribution.Client.BuildReports.Types (ReportLevel (..))
 import Distribution.Client.IndexUtils.IndexState (TotalIndexState)
 import Distribution.Client.ProjectConfig.Types (MapMappend, PackageConfig, ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance, ProjectConfigShared)
 import qualified Distribution.Client.ProjectConfig.Types as T
@@ -97,6 +98,10 @@ projectConfigSummaryFile f s = fmap (\x -> s{T.projectConfigSummaryFile = x}) (f
 projectConfigLogFile :: Lens' ProjectConfigBuildOnly (Flag PathTemplate)
 projectConfigLogFile f s = fmap (\x -> s{T.projectConfigLogFile = x}) (f (T.projectConfigLogFile s))
 {-# INLINEABLE projectConfigLogFile #-}
+
+projectConfigBuildReports :: Lens' ProjectConfigBuildOnly (Flag ReportLevel)
+projectConfigBuildReports f s = fmap (\x -> s{T.projectConfigBuildReports = x}) (f (T.projectConfigBuildReports s))
+{-# INLINEABLE projectConfigBuildReports #-}
 
 projectConfigReportPlanningFailure :: Lens' ProjectConfigBuildOnly (Flag Bool)
 projectConfigReportPlanningFailure f s = fmap (\x -> s{T.projectConfigReportPlanningFailure = x}) (f (T.projectConfigReportPlanningFailure s))

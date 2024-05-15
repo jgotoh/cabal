@@ -7,6 +7,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Maybe
 import qualified Data.Set as Set
+import Distribution.Client.BuildReports.Types (ReportLevel (..))
 import Distribution.Client.Dependency.Types (PreSolver (..))
 import Distribution.Client.DistDirLayout
 import Distribution.Client.HttpUtils
@@ -45,7 +46,6 @@ import System.FilePath
 import Test.Cabal.Prelude hiding (cabal)
 import qualified Test.Cabal.Prelude as P
 
--- TODO create test: test that cli only options are really not parsed
 main = do
   cabalTest' "read packages" testPackages
   cabalTest' "read optional-packages" testOptionalPackages
@@ -116,7 +116,7 @@ testProjectConfigBuildOnly = do
     projectConfigOnlyDownload = mempty -- cli only
     projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile"]
     projectConfigLogFile = toFlag $ toPathTemplate "myLog.log"
-    projectConfigBuildReports = mempty -- cli only
+    projectConfigBuildReports = toFlag $ DetailedReports
     projectConfigReportPlanningFailure = toFlag True
     projectConfigSymlinkBinDir = toFlag "some-bindir"
     projectConfigNumJobs = toFlag $ Just 4
