@@ -73,7 +73,7 @@ projectConfigBuildOnlyFieldGrammar =
 projectConfigSharedFieldGrammar :: ProjectConfigPath -> ParsecFieldGrammar' ProjectConfigShared
 projectConfigSharedFieldGrammar source =
   ProjectConfigShared
-    <$> optionalFieldDefAla "builddir" (alaFlag FilePathNT) L.projectConfigDistDir mempty -- TODO builddir is not documented
+    <$> optionalFieldDefAla "builddir" (alaFlag FilePathNT) L.projectConfigDistDir mempty
     <*> pure mempty -- cli flag: projectConfigConfigFile
     <*> optionalFieldDefAla "project-dir" (alaFlag FilePathNT) L.projectConfigProjectDir mempty
     <*> optionalFieldDefAla "project-file" (alaFlag FilePathNT) L.projectConfigProjectFile mempty

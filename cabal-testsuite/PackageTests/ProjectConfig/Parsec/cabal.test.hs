@@ -124,7 +124,7 @@ testProjectConfigBuildOnly = do
     projectConfigDryRun = mempty -- cli only
     projectConfigOnlyDeps = mempty -- cli only
     projectConfigOnlyDownload = mempty -- cli only
-    projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile"]
+    projectConfigSummaryFile = toNubList [toPathTemplate "summaryFile", toPathTemplate "summaryFile2"]
     projectConfigLogFile = toFlag $ toPathTemplate "myLog.log"
     projectConfigBuildReports = toFlag $ DetailedReports
     projectConfigReportPlanningFailure = toFlag True
@@ -216,15 +216,6 @@ testProjectConfigLocalPackages = do
   (config, legacy) <- readConfigDefault rootFp
   assertConfig expected config legacy (projectConfigLocalPackages . condTreeData)
   where
-    -- TODO About progname-locations: there is a mistake in our docs
-    -- https://cabal.readthedocs.io/en/stable/cabal-project.html#package-configuration-options
-    -- they say: "They take the form progname-options and progname-location, and can be set for all local packages in a program-options stanza or under a package stanza."
-    -- You would think that the following is valid in a .project file (because progname-location is under program-options stanza):
-    -- program-options
-    --     ghc-location: /tmp/bin/ghc
-    --     gcc-location: /tmp/bin/gcc
-    -- but you get Unrecognized field 'gcc-location', same for ghc
-    -- You need to move the locations into a program-locations stanza to get it working
     packageConfigProgramPaths = MapLast $ Map.fromList [("ghc", "/tmp/bin/ghc"), ("gcc", "/tmp/bin/gcc")]
     packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-fno-state-hack", "-foo"]), ("gcc", ["-baz", "-quux"])]
     packageConfigProgramPathExtra = toNubList ["/tmp/bin/extra", "/usr/local/bin"]
@@ -244,14 +235,14 @@ testProjectConfigLocalPackages = do
     packageConfigProgPrefix = Flag $ toPathTemplate "another/path"
     packageConfigProgSuffix = Flag $ toPathTemplate "and/another/path"
     packageConfigExtraLibDirs = ["so", "many", "lib/dirs"]
-    packageConfigExtraLibDirsStatic = ["a/few", "static/lib/dirs"] -- TODO this is not documented in readthedocs
+    packageConfigExtraLibDirsStatic = ["a/few", "static/lib/dirs"]
     packageConfigExtraFrameworkDirs = ["osx/framework", "dirs"]
     packageConfigExtraIncludeDirs = ["incredible/amount", "of", "include", "directories"]
     packageConfigGHCiLib = Flag False
     packageConfigSplitSections = Flag True
     packageConfigSplitObjs = Flag True
     packageConfigStripExes = Flag False
-    packageConfigStripLibs = Flag False -- TODO library-stripping missing default value in readthedocs
+    packageConfigStripLibs = Flag False
     packageConfigTests = Flag True
     packageConfigBenchmarks = Flag True
     packageConfigCoverage = Flag True
@@ -264,7 +255,7 @@ testProjectConfigLocalPackages = do
     packageConfigHaddockHoogle = Flag True
     packageConfigHaddockHtml = Flag False
     packageConfigHaddockHtmlLocation = Flag "http://hackage.haskell.org/packages/archive/$pkg/latest/doc/html"
-    packageConfigHaddockForeignLibs = Flag True -- TODO not documented in readthedocs
+    packageConfigHaddockForeignLibs = Flag True
     packageConfigHaddockExecutables = Flag True
     packageConfigHaddockTestSuites = Flag True
     packageConfigHaddockBenchmarks = Flag True
@@ -278,9 +269,7 @@ testProjectConfigLocalPackages = do
     packageConfigHaddockBaseUrl = Flag "https://example.com/haddock-base-url"
     packageConfigHaddockLib = Flag "/haddock/static"
     packageConfigHaddockOutputDir = Flag "/haddock/output"
-    -- TODO not documented (like lots of haddock flags)
     packageConfigHaddockForHackage = Flag ForHackage
-    -- TODO Also I think lots of the following test options are not documented
     packageConfigTestHumanLog = Flag $ toPathTemplate "human-log.log"
     packageConfigTestMachineLog = Flag $ toPathTemplate "machine.log"
     packageConfigTestShowDetails = Flag Streaming

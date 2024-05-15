@@ -1,5 +1,5 @@
 verbose: 2
-build-summary: summaryFile
+build-summary: summaryFile, summaryFile2
 build-log: myLog.log
 remote-build-reporting: detailed
 report-planning-failure: True
