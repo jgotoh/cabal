@@ -19,12 +19,6 @@ import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Solver.Types.ProjectConfigPath
 import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 
--- TODO check usages of monoidalField: "Field which can be define multiple times, and the results are mappended."
--- I've used it often for fields that should not be appended if defined multiple times, basically any field that is not a list
--- I expect I can just use optionalFieldDef/Ala in these cases, see optionalFieldDefAla "haddock-css"
--- TODO check if ^^^ availableSince can be used in some of the fields (see FieldGrammar of PackageDescription)
-
--- TODO ParsecFieldGrammar' is a Grammar implementation, we should just use abstract FieldGrammar here
 projectConfigFieldGrammar :: ProjectConfigPath -> [String] -> ParsecFieldGrammar' ProjectConfig
 projectConfigFieldGrammar source knownPrograms =
   ProjectConfig
@@ -58,17 +52,17 @@ projectConfigBuildOnlyFieldGrammar =
     <*> optionalFieldDef "build-log" L.projectConfigLogFile mempty
     <*> optionalFieldDef "remote-build-reporting" L.projectConfigBuildReports mempty
     <*> optionalFieldDef "report-planning-failure" L.projectConfigReportPlanningFailure mempty
-    <*> monoidalFieldAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir
-    <*> monoidalFieldAla "jobs" (alaFlag NumJobs) L.projectConfigNumJobs
+    <*> optionalFieldDefAla "symlink-bindir" (alaFlag FilePathNT) L.projectConfigSymlinkBinDir mempty
+    <*> optionalFieldDefAla "jobs" (alaFlag NumJobs) L.projectConfigNumJobs mempty
     <*> optionalFieldDef "semaphore" L.projectConfigUseSemaphore mempty
     <*> optionalFieldDef "keep-going" L.projectConfigKeepGoing mempty
     <*> optionalFieldDef "offline" L.projectConfigOfflineMode mempty
     <*> optionalFieldDef "haddock-keep-temp-files" L.projectConfigKeepTempFiles mempty
-    <*> monoidalFieldAla "http-transport" (alaFlag Token) L.projectConfigHttpTransport
+    <*> optionalFieldDefAla "http-transport" (alaFlag Token) L.projectConfigHttpTransport mempty
     <*> optionalFieldDef "ignore-expiry" L.projectConfigIgnoreExpiry mempty
-    <*> monoidalFieldAla "remote-repo-cache" (alaFlag FilePathNT) L.projectConfigCacheDir
-    <*> monoidalFieldAla "logs-dir" (alaFlag FilePathNT) L.projectConfigLogsDir
-    <*> pure mempty
+    <*> optionalFieldDefAla "remote-repo-cache" (alaFlag FilePathNT) L.projectConfigCacheDir mempty
+    <*> optionalFieldDefAla "logs-dir" (alaFlag FilePathNT) L.projectConfigLogsDir mempty
+    <*> pure mempty -- cli flag: projectConfigClientInstallFlags
 
 projectConfigSharedFieldGrammar :: ProjectConfigPath -> ParsecFieldGrammar' ProjectConfigShared
 projectConfigSharedFieldGrammar source =
@@ -79,8 +73,8 @@ projectConfigSharedFieldGrammar source =
     <*> optionalFieldDefAla "project-file" (alaFlag FilePathNT) L.projectConfigProjectFile mempty
     <*> optionalFieldDef "ignore-project" L.projectConfigIgnoreProject mempty
     <*> optionalFieldDef "compiler" L.projectConfigHcFlavor mempty
-    <*> monoidalFieldAla "with-compiler" (alaFlag FilePathNT) L.projectConfigHcPath
-    <*> monoidalFieldAla "with-hc-pkg" (alaFlag FilePathNT) L.projectConfigHcPkg
+    <*> optionalFieldDefAla "with-compiler" (alaFlag FilePathNT) L.projectConfigHcPath mempty
+    <*> optionalFieldDefAla "with-hc-pkg" (alaFlag FilePathNT) L.projectConfigHcPkg mempty
     <*> optionalFieldDef "doc-index-file" L.projectConfigHaddockIndex mempty
     <*> pure mempty -- cli flag: projectConfigInstallDirs
     <*> monoidalFieldAla "package-dbs" (alaList' CommaFSep PackageDBNT) L.projectConfigPackageDBs
@@ -92,24 +86,24 @@ projectConfigSharedFieldGrammar source =
     <*> monoidalFieldAla "constraints" (alaList' FSep ProjectConstraints) L.projectConfigConstraints
       ^^^ (fmap . fmap) (\(userConstraint, _) -> (userConstraint, ConstraintSourceProjectConfig source))
     <*> monoidalFieldAla "preferences" formatPackageVersionConstraints L.projectConfigPreferences
-    <*> monoidalField "cabal-lib-version" L.projectConfigCabalVersion
-    <*> monoidalField "solver" L.projectConfigSolver
+    <*> optionalFieldDef "cabal-lib-version" L.projectConfigCabalVersion mempty
+    <*> optionalFieldDef "solver" L.projectConfigSolver mempty
     <*> optionalField "allow-older" L.projectConfigAllowOlder
     <*> optionalField "allow-newer" L.projectConfigAllowNewer
-    <*> monoidalField "write-ghc-environment-files" L.projectConfigWriteGhcEnvironmentFilesPolicy
-    <*> monoidalFieldAla "max-backjumps" (alaFlag MaxBackjumps) L.projectConfigMaxBackjumps
-    <*> monoidalField "reorder-goals" L.projectConfigReorderGoals
-    <*> monoidalField "count-conflicts" L.projectConfigCountConflicts
-    <*> monoidalField "fine-grained-conflicts" L.projectConfigFineGrainedConflicts
-    <*> monoidalField "minimize-conflict-set" L.projectConfigMinimizeConflictSet
-    <*> monoidalField "strong-flags" L.projectConfigStrongFlags
-    <*> monoidalField "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls
+    <*> optionalFieldDef "write-ghc-environment-files" L.projectConfigWriteGhcEnvironmentFilesPolicy mempty
+    <*> optionalFieldDefAla "max-backjumps" (alaFlag MaxBackjumps) L.projectConfigMaxBackjumps mempty
+    <*> optionalFieldDef "reorder-goals" L.projectConfigReorderGoals mempty
+    <*> optionalFieldDef "count-conflicts" L.projectConfigCountConflicts mempty
+    <*> optionalFieldDef "fine-grained-conflicts" L.projectConfigFineGrainedConflicts mempty
+    <*> optionalFieldDef "minimize-conflict-set" L.projectConfigMinimizeConflictSet mempty
+    <*> optionalFieldDef "strong-flags" L.projectConfigStrongFlags mempty
+    <*> optionalFieldDef "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls mempty
     <*> optionalFieldDef "reject-unconstrained-dependencies" L.projectConfigOnlyConstrained mempty
     <*> optionalFieldDef "per-component" L.projectConfigPerComponent mempty
     <*> optionalFieldDef "independent-goals" L.projectConfigIndependentGoals mempty
-    <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
+    <*> optionalFieldDef "prefer-oldest" L.projectConfigPreferOldest mempty
     <*> monoidalFieldAla "extra-prog-path-shared-only" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
-    <*> monoidalField "multi-repl" L.projectConfigMultiRepl
+    <*> optionalFieldDef "multi-repl" L.projectConfigMultiRepl mempty
 
 packageConfigFieldGrammar :: [String] -> ParsecFieldGrammar' PackageConfig
 packageConfigFieldGrammar knownPrograms =
@@ -175,7 +169,7 @@ packageConfigFieldGrammar knownPrograms =
     <*> optionalFieldDef "test-fail-when-no-test-suites" L.packageConfigTestFailWhenNoTestSuites mempty
     <*> monoidalFieldAla "test-options" (alaList NoCommaFSep) L.packageConfigTestTestOptions
     <*> monoidalFieldAla "benchmark-options" (alaList NoCommaFSep) L.packageConfigBenchmarkOptions
-    -- A PackageConfig may contain -options and -location fields inside a package * (packageConfigAllPackages) or package <name> stanza (packageConfigSpecificPackage).
+    -- A PackageConfig may contain -options and -location fields inside a package * (projectConfigAllPackages) or package <name> stanza (packageConfigSpecificPackage).
     -- When declared at top level (packageConfigLocalPackages), the PackageConfig must contain a program-options stanza/program-locations for these fields.
     <* traverse_ (knownField . BS.pack . (<> "-options")) knownPrograms
     <* traverse_ (knownField . BS.pack . (<> "-location")) knownPrograms

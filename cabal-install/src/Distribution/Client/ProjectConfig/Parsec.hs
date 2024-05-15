@@ -27,7 +27,6 @@ import Distribution.Parsec.FieldLineStream (fieldLineStreamFromBS)
 import Distribution.Simple.Utils (debug, warn)
 import Distribution.Verbosity
 
--- TODO #6101 .Legacy -> ProjectConfigSkeleton should probably be moved here
 import Distribution.Client.ProjectConfig.FieldGrammar (packageConfigFieldGrammar, projectConfigFieldGrammar)
 import Distribution.Client.ProjectConfig.Legacy (ProjectConfigSkeleton)
 import qualified Distribution.Client.ProjectConfig.Lens as L
@@ -177,7 +176,6 @@ parseProjectSkeleton cacheDir httpTransport verbosity projectDir source (Project
     parseImport :: Position -> [FieldLine Position] -> ParseResult FilePath
     parseImport pos lines' = runFieldParser pos (P.many P.anyChar) cabalSpec lines'
 
-    -- TODO emit unrecognized field warning on unknown fields, legacy parser does this
     -- We want a normalized path for @fieldsToConfig@. This eventually surfaces
     -- in solver rejection messages and build messages "this build was affected
     -- by the following (project) config files" so we want all paths shown there
@@ -243,43 +241,45 @@ goSections programDb = traverse_ (parseSection programDb)
 parseSection :: ProgramDb -> Section Position -> SectionParser ()
 parseSection programDb (MkSection (Name pos name) args secFields)
   | name == "source-repository-package" = do
-      -- TODO implement syntaxError lineno "the section 'source-repository-package' takes no arguments"
+      verifyNullSubsections
+      verifyNullSectionArgs
       srp <- lift $ parseFieldGrammar cabalSpec fields sourceRepositoryPackageGrammar
       stateConfig . L.projectPackagesRepo %= (++ [srp])
-      unless (null sections) (warnInvalidSubsection pos name)
   | name == "program-options" = do
-      -- TODO implement syntaxError lineno "the section 'program-options' takes no arguments"
+      verifyNullSubsections
+      verifyNullSectionArgs
       opts <- lift $ parseProgramArgs Warn programDb fields
       stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramArgs = opts})
-      unless (null sections) (warnInvalidSubsection pos name)
   | name == "program-locations" = do
-      -- TODO implement syntaxError lineno "the section 'program-locations' takes no arguments"
+      verifyNullSubsections
+      verifyNullSectionArgs
       opts <- lift $ parseProgramPaths Warn programDb fields
       stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramPaths = opts})
-      unless (null sections) (warnInvalidSubsection pos name)
   | name == "package" = do
+      verifyNullSubsections
       package <- lift $ parsePackageName pos args
       case package of
         Just AllPackages -> do
-          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
+          parsedPkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
           args' <- lift $ parseProgramArgs Ignore programDb fields
           paths <- lift $ parseProgramPaths Ignore programDb fields
-          let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
-          stateConfig . L.projectConfigAllPackages .= pkgCfg'
+          let pkgCfg' = parsedPkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
+          stateConfig . L.projectConfigAllPackages %= (\pkgCfg -> pkgCfg' <> pkgCfg)
         Just (SpecificPackage packageName) -> do
           pkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
           args' <- lift $ parseProgramArgs Ignore programDb fields
           paths <- lift $ parseProgramPaths Ignore programDb fields
           let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
           stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName pkgCfg'))
-        Nothing -> return ()
-      unless (null sections) (warnInvalidSubsection pos name)
+        Nothing -> return () -- TODO what then? error?
   | otherwise = do
       warnInvalidSubsection pos name
   where
     (fields, sections) = partitionFields secFields
-    warnInvalidSubsection pos' name' = lift $ parseWarning pos' PWTInvalidSubsection $ "PARSEC: invalid subsection " ++ show name'
+    warnInvalidSubsection pos' name' = lift $ parseWarning pos' PWTInvalidSubsection $ "Invalid subsection " ++ show name'
     programNames = knownProgramNames programDb
+    verifyNullSubsections = unless (null sections) (warnInvalidSubsection pos name)
+    verifyNullSectionArgs = unless (null args) (lift $ parseFailure pos $ "The section '" <> (show name) <> "' takes no arguments")
 
 data PackageConfigTarget = AllPackages | SpecificPackage PackageName
 

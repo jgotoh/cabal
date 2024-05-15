@@ -67,6 +67,8 @@ main = do
   cabalTest' "read project-config-local-packages" testProjectConfigLocalPackages
   cabalTest' "read project-config-all-packages" testProjectConfigAllPackages
   cabalTest' "read project-config-specific-packages" testProjectConfigSpecificPackages
+  cabalTest' "test projectConfigAllPackages concatenation" testAllPackagesConcat
+  cabalTest' "test projectConfigSpecificPackages concatenation" testSpecificPackagesConcat
 
 testPackages :: TestM ()
 testPackages = do
@@ -317,6 +319,35 @@ testProjectConfigSpecificPackages = do
     expectedBaz =
       mempty
         { packageConfigSharedLib = Flag True
+        }
+
+testAllPackagesConcat :: TestM ()
+testAllPackagesConcat = do
+  let rootFp = "all-packages-concat"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigAllPackages . condTreeData)
+  where
+    expected :: PackageConfig
+    expected =
+      mempty
+        { packageConfigSharedLib = Flag True
+        , packageConfigStaticLib = Flag True
+        , packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-fwarn-tabs", "-Wall"])]
+        }
+
+testSpecificPackagesConcat :: TestM ()
+testSpecificPackagesConcat = do
+  let rootFp = "specific-packages-concat"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigSpecificPackage . condTreeData)
+  where
+    expected = MapMappend $ Map.fromList [("foo", expectedFoo)]
+    expectedFoo :: PackageConfig
+    expectedFoo =
+      mempty
+        { packageConfigSharedLib = Flag True
+        , packageConfigStaticLib = Flag True
+        , packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-fno-state-hack", "-threaded"])]
         }
 
 readConfigDefault :: FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)
