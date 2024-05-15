@@ -125,3 +125,6 @@ instance Parsec AllowBootLibInstalls where
 
 instance Parsec PreferOldest where
   parsec = PreferOldest <$> parsec
+
+instance Parsec IndependentGoals where
+  parsec = IndependentGoals <$> parsec

@@ -1,10 +1,10 @@
 module Distribution.Client.ProjectConfig.Lens where
 
+import Distribution.Client.BuildReports.Types (ReportLevel (..))
 import Distribution.Client.Dependency.Types (PreSolver (..))
 import Distribution.Client.IndexUtils.ActiveRepos
   ( ActiveRepos
   )
-import Distribution.Client.BuildReports.Types (ReportLevel (..))
 import Distribution.Client.IndexUtils.IndexState (TotalIndexState)
 import Distribution.Client.ProjectConfig.Types (MapMappend, PackageConfig, ProjectConfig (..), ProjectConfigBuildOnly (..), ProjectConfigProvenance, ProjectConfigShared)
 import qualified Distribution.Client.ProjectConfig.Types as T
@@ -37,7 +37,17 @@ import Distribution.Simple.Setup
   , TestShowDetails (..)
   )
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource)
-import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), OnlyConstrained (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
+import Distribution.Solver.Types.Settings
+  ( AllowBootLibInstalls (..)
+  , CountConflicts (..)
+  , FineGrainedConflicts (..)
+  , IndependentGoals (..)
+  , MinimizeConflictSet (..)
+  , OnlyConstrained (..)
+  , PreferOldest (..)
+  , ReorderGoals (..)
+  , StrongFlags (..)
+  )
 import Distribution.Types.PackageVersionConstraint
   ( PackageVersionConstraint
   )
@@ -150,6 +160,26 @@ projectConfigLogsDir f s = fmap (\x -> s{T.projectConfigLogsDir = x}) (f (T.proj
 projectConfigDistDir :: Lens' ProjectConfigShared (Flag FilePath)
 projectConfigDistDir f s = fmap (\x -> s{T.projectConfigDistDir = x}) (f (T.projectConfigDistDir s))
 {-# INLINEABLE projectConfigDistDir #-}
+
+projectConfigProjectDir :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigProjectDir f s = fmap (\x -> s{T.projectConfigProjectDir = x}) (f (T.projectConfigProjectDir s))
+{-# INLINEABLE projectConfigProjectDir #-}
+
+projectConfigStoreDir :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigStoreDir f s = fmap (\x -> s{T.projectConfigStoreDir = x}) (f (T.projectConfigStoreDir s))
+{-# INLINEABLE projectConfigStoreDir #-}
+
+projectConfigPerComponent :: Lens' ProjectConfigShared (Flag Bool)
+projectConfigPerComponent f s = fmap (\x -> s{T.projectConfigPerComponent = x}) (f (T.projectConfigPerComponent s))
+{-# INLINEABLE projectConfigPerComponent #-}
+
+projectConfigIndependentGoals :: Lens' ProjectConfigShared (Flag IndependentGoals)
+projectConfigIndependentGoals f s = fmap (\x -> s{T.projectConfigIndependentGoals = x}) (f (T.projectConfigIndependentGoals s))
+{-# INLINEABLE projectConfigIndependentGoals #-}
+
+projectConfigProjectFile :: Lens' ProjectConfigShared (Flag FilePath)
+projectConfigProjectFile f s = fmap (\x -> s{T.projectConfigProjectFile = x}) (f (T.projectConfigProjectFile s))
+{-# INLINEABLE projectConfigProjectFile #-}
 
 projectConfigIgnoreProject :: Lens' ProjectConfigShared (Flag Bool)
 projectConfigIgnoreProject f s = fmap (\x -> s{T.projectConfigIgnoreProject = x}) (f (T.projectConfigIgnoreProject s))

@@ -75,8 +75,8 @@ projectConfigSharedFieldGrammar source =
   ProjectConfigShared
     <$> optionalFieldDefAla "builddir" (alaFlag FilePathNT) L.projectConfigDistDir mempty -- TODO builddir is not documented
     <*> pure mempty -- cli flag: projectConfigConfigFile
-    <*> pure mempty -- cli flag: projectConfigProjectDir
-    <*> pure mempty -- cli flag: projectConfigProjectFile
+    <*> optionalFieldDefAla "project-dir" (alaFlag FilePathNT) L.projectConfigProjectDir mempty
+    <*> optionalFieldDefAla "project-file" (alaFlag FilePathNT) L.projectConfigProjectFile mempty
     <*> optionalFieldDef "ignore-project" L.projectConfigIgnoreProject mempty
     <*> optionalFieldDef "compiler" L.projectConfigHcFlavor mempty
     <*> monoidalFieldAla "with-compiler" (alaFlag FilePathNT) L.projectConfigHcPath
@@ -88,7 +88,7 @@ projectConfigSharedFieldGrammar source =
     <*> pure mempty -- cli flag: projectConfigLocalNoIndexRepos
     <*> monoidalField "active-repositories" L.projectConfigActiveRepos
     <*> monoidalField "index-state" L.projectConfigIndexState
-    <*> pure mempty -- cli flag: projectConfigStoreDir
+    <*> optionalFieldDefAla "store-dir" (alaFlag FilePathNT) L.projectConfigStoreDir mempty
     <*> monoidalFieldAla "constraints" (alaList' FSep ProjectConstraints) L.projectConfigConstraints
       ^^^ (fmap . fmap) (\(userConstraint, _) -> (userConstraint, ConstraintSourceProjectConfig source))
     <*> monoidalFieldAla "preferences" formatPackageVersionConstraints L.projectConfigPreferences
@@ -105,8 +105,8 @@ projectConfigSharedFieldGrammar source =
     <*> monoidalField "strong-flags" L.projectConfigStrongFlags
     <*> monoidalField "allow-boot-library-installs" L.projectConfigAllowBootLibInstalls
     <*> optionalFieldDef "reject-unconstrained-dependencies" L.projectConfigOnlyConstrained mempty
-    <*> pure mempty -- cli flag: projectConfigPerComponent
-    <*> pure mempty -- cli flag: projectConfigIndependentGoals
+    <*> optionalFieldDef "per-component" L.projectConfigPerComponent mempty
+    <*> optionalFieldDef "independent-goals" L.projectConfigIndependentGoals mempty
     <*> monoidalField "prefer-oldest" L.projectConfigPreferOldest
     <*> monoidalFieldAla "extra-prog-path-shared-only" (alaNubList' FSep FilePathNT) L.projectConfigProgPathExtra
     <*> monoidalField "multi-repl" L.projectConfigMultiRepl

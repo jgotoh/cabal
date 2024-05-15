@@ -1,5 +1,10 @@
 builddir: something
-ignore-project: True
+project-dir: my-project-dir
+project-file: my-project
+store-dir: a/store/dir/path
+per-component: True
+independent-goals: True
+ignore-project: False
 compiler: ghcjs
 with-compiler: /some/path/to/compiler
 with-hc-pkg: /some/path/to/ghc-pkg

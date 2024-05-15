@@ -29,7 +29,17 @@ import Distribution.Simple.InstallDirs (toPathTemplate)
 import Distribution.Simple.Setup (DumpBuildInfo (..), Flag, HaddockTarget (..), TestShowDetails (..))
 import Distribution.Solver.Types.ConstraintSource (ConstraintSource (..))
 import Distribution.Solver.Types.ProjectConfigPath (ProjectConfigPath (..))
-import Distribution.Solver.Types.Settings (AllowBootLibInstalls (..), CountConflicts (..), FineGrainedConflicts (..), MinimizeConflictSet (..), OnlyConstrained (..), PreferOldest (..), ReorderGoals (..), StrongFlags (..))
+import Distribution.Solver.Types.Settings
+  ( AllowBootLibInstalls (..)
+  , CountConflicts (..)
+  , FineGrainedConflicts (..)
+  , IndependentGoals (..)
+  , MinimizeConflictSet (..)
+  , OnlyConstrained (..)
+  , PreferOldest (..)
+  , ReorderGoals (..)
+  , StrongFlags (..)
+  )
 import Distribution.Types.CondTree (CondTree (..))
 import Distribution.Types.Flag (FlagAssignment (..), FlagName, mkFlagAssignment)
 import Distribution.Types.PackageId (PackageIdentifier (..))
@@ -142,9 +152,9 @@ testProjectConfigShared = do
   where
     projectConfigDistDir = toFlag "something"
     projectConfigConfigFile = mempty -- cli only
-    projectConfigProjectDir = mempty -- cli only
-    projectConfigProjectFile = mempty -- cli only
-    projectConfigIgnoreProject = toFlag True
+    projectConfigProjectDir = toFlag "my-project-dir"
+    projectConfigProjectFile = toFlag "my-project"
+    projectConfigIgnoreProject = toFlag False
     projectConfigHcFlavor = toFlag GHCJS
     projectConfigHcPath = toFlag "/some/path/to/compiler"
     projectConfigHcPkg = toFlag "/some/path/to/ghc-pkg"
@@ -162,7 +172,7 @@ testProjectConfigShared = do
         indexState'' = insertIndexState (RepoName "head.hackage") headHackageState indexState'
        in
         toFlag indexState''
-    projectConfigStoreDir = mempty -- cli only
+    projectConfigStoreDir = toFlag "a/store/dir/path" -- cli only
     getProjectConfigConstraints projectFileFp =
       let
         bar = fromRight (error "error parsing bar") $ readUserConstraint "bar == 2.1"
@@ -184,8 +194,8 @@ testProjectConfigShared = do
     projectConfigStrongFlags = Flag (StrongFlags True)
     projectConfigAllowBootLibInstalls = Flag (AllowBootLibInstalls True)
     projectConfigOnlyConstrained = Flag OnlyConstrainedAll
-    projectConfigPerComponent = mempty -- cli only
-    projectConfigIndependentGoals = mempty -- cli only
+    projectConfigPerComponent = Flag True
+    projectConfigIndependentGoals = Flag (IndependentGoals True)
     projectConfigPreferOldest = Flag (PreferOldest True)
     projectConfigProgPathExtra = toNubList ["/foo/bar", "/baz/quux"]
     projectConfigMultiRepl = toFlag True
