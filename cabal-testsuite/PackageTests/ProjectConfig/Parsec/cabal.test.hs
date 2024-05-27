@@ -69,6 +69,8 @@ main = do
   cabalTest' "read project-config-specific-packages" testProjectConfigSpecificPackages
   cabalTest' "test projectConfigAllPackages concatenation" testAllPackagesConcat
   cabalTest' "test projectConfigSpecificPackages concatenation" testSpecificPackagesConcat
+  cabalTest' "test program-locations concatenation" testProgramLocationsConcat
+  cabalTest' "test program-options concatenation" testProgramOptionsConcat
 
 testPackages :: TestM ()
 testPackages = do
@@ -348,6 +350,30 @@ testSpecificPackagesConcat = do
         { packageConfigSharedLib = Flag True
         , packageConfigStaticLib = Flag True
         , packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-fno-state-hack", "-threaded"])]
+        }
+
+testProgramLocationsConcat :: TestM ()
+testProgramLocationsConcat = do
+  let rootFp = "program-locations-concat"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigLocalPackages . condTreeData)
+  where
+    expected :: PackageConfig
+    expected =
+      mempty
+        { packageConfigProgramPaths = MapLast $ Map.fromList [("gcc", "/tmp/bin/gcc"), ("ghc", "/tmp/bin/ghc")]
+        }
+
+testProgramOptionsConcat :: TestM ()
+testProgramOptionsConcat = do
+  let rootFp = "program-options-concat"
+  (config, legacy) <- readConfigDefault rootFp
+  assertConfig expected config legacy (projectConfigLocalPackages . condTreeData)
+  where
+    expected :: PackageConfig
+    expected =
+      mempty
+        { packageConfigProgramArgs = MapMappend $ Map.fromList [("ghc", ["-threaded", "-Wall", "-fno-state-hack"]), ("gcc", ["-baz", "-foo", "-bar"])]
         }
 
 readConfigDefault :: FilePath -> TestM (ProjectConfigSkeleton, ProjectConfigSkeleton)

@@ -249,29 +249,23 @@ parseSection programDb (MkSection (Name pos name) args secFields)
       verifyNullSubsections
       verifyNullSectionArgs
       opts <- lift $ parseProgramArgs Warn programDb fields
-      stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramArgs = opts})
+      stateConfig . L.projectConfigLocalPackages %= (\cfg -> cfg{packageConfigProgramArgs = (opts <> packageConfigProgramArgs cfg)})
   | name == "program-locations" = do
       verifyNullSubsections
       verifyNullSectionArgs
-      opts <- lift $ parseProgramPaths Warn programDb fields
-      stateConfig . L.projectConfigLocalPackages %= (\lp -> lp{packageConfigProgramPaths = opts})
+      paths <- lift $ parseProgramPaths Warn programDb fields
+      stateConfig . L.projectConfigLocalPackages %= (\cfg -> cfg{packageConfigProgramPaths = (paths <> packageConfigProgramPaths cfg)})
   | name == "package" = do
       verifyNullSubsections
       package <- lift $ parsePackageName pos args
       case package of
         Just AllPackages -> do
-          parsedPkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
-          args' <- lift $ parseProgramArgs Ignore programDb fields
-          paths <- lift $ parseProgramPaths Ignore programDb fields
-          let pkgCfg' = parsedPkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
-          stateConfig . L.projectConfigAllPackages %= (\pkgCfg -> pkgCfg' <> pkgCfg)
+          packageCfg' <- parsePackageConfig
+          stateConfig . L.projectConfigAllPackages %= (\packageCfg -> packageCfg' <> packageCfg)
         Just (SpecificPackage packageName) -> do
-          pkgCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
-          args' <- lift $ parseProgramArgs Ignore programDb fields
-          paths <- lift $ parseProgramPaths Ignore programDb fields
-          let pkgCfg' = pkgCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
-          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName pkgCfg'))
-        Nothing -> return () -- TODO what then? error?
+          packageCfg <- parsePackageConfig
+          stateConfig . L.projectConfigSpecificPackage %= (\spcs -> spcs <> MapMappend (Map.singleton packageName packageCfg))
+        Nothing -> return ()
   | otherwise = do
       warnInvalidSubsection pos name
   where
@@ -280,10 +274,14 @@ parseSection programDb (MkSection (Name pos name) args secFields)
     programNames = knownProgramNames programDb
     verifyNullSubsections = unless (null sections) (warnInvalidSubsection pos name)
     verifyNullSectionArgs = unless (null args) (lift $ parseFailure pos $ "The section '" <> (show name) <> "' takes no arguments")
+    parsePackageConfig = do
+      packageCfg <- lift $ parseFieldGrammar cabalSpec fields (packageConfigFieldGrammar programNames)
+      args' <- lift $ parseProgramArgs Ignore programDb fields
+      paths <- lift $ parseProgramPaths Ignore programDb fields
+      return packageCfg{packageConfigProgramPaths = paths, packageConfigProgramArgs = args'}
 
 data PackageConfigTarget = AllPackages | SpecificPackage PackageName
 
--- TODO what happens when package * is used more than once? maybe emit "warning, not more than once?" what happens atm?
 parsePackageName :: Position -> [SectionArg Position] -> ParseResult (Maybe PackageConfigTarget)
 parsePackageName pos args = case args of
   [SecArgName _ secName] -> parseName secName
