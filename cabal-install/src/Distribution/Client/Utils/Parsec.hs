@@ -198,7 +198,6 @@ instance Newtype (Maybe Int) NumJobs
 instance Parsec NumJobs where
   parsec = parsecNumJobs
 
--- TODO 6101 unit tests
 parsecNumJobs :: CabalParsing m => m NumJobs
 parsecNumJobs = ncpus <|> numJobs
   where

@@ -305,46 +305,36 @@ data WarnUnknownFields = Ignore | Warn
 parseProgramArgs :: WarnUnknownFields -> ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])
 parseProgramArgs warnLevel programDb fields = foldM parseField mempty (Map.toList fields)
   where
-    parseField accum (fieldName, fieldValues) = do
+    parseField programArgs (fieldName, fieldLines) = do
       case readProgramName "-options" programDb fieldName of
         Nothing -> case warnLevel of
-          Ignore -> return accum
-          Warn -> warnUnknownFields fieldName fieldValues >> return accum
+          Ignore -> return programArgs
+          Warn -> warnUnknownFields fieldName fieldLines >> return programArgs
         Just program -> do
-          args <- parseProgramArgsField fieldValues
-          return $ accum <> MapMappend (Map.singleton program args)
+          args <- parseProgramArgsField fieldLines
+          return $ programArgs <> MapMappend (Map.singleton program args)
 
 -- | Parse fields of a program-locations stanza.
 parseProgramPaths :: WarnUnknownFields -> ProgramDb -> Fields Position -> ParseResult (MapLast String FilePath)
 parseProgramPaths warnLevel programDb fields = foldM parseField mempty (Map.toList fields)
   where
-    parseField accum (fieldName, fieldValues) = do
+    parseField paths (fieldName, fieldLines) = do
       case readProgramName "-location" programDb fieldName of
         Nothing -> case warnLevel of
-          Ignore -> return accum
-          Warn -> warnUnknownFields fieldName fieldValues >> return accum
+          Ignore -> return paths
+          Warn -> warnUnknownFields fieldName fieldLines >> return paths
         Just program -> do
-          fp <- parseProgramPathsField fieldValues
-          return $ accum <> MapLast (Map.singleton program fp)
+          case fieldLines of
+            (MkNamelessField pos lines') : _ -> do
+              fp <- runFieldParser pos parsecFilePath cabalSpec lines'
+              return $ paths <> MapLast (Map.singleton program fp)
+            [] -> return mempty
 
 -- | Parse all arguments to a single program in program-options stanza.
 -- By processing '[NamelessField Position]', we support multiple occurrences of the field, concatenating the arguments.
 parseProgramArgsField :: [NamelessField Position] -> ParseResult ([String])
-parseProgramArgsField fieldValues =
-  concat <$> mapM (\(MkNamelessField pos lines') -> parseProgramArgsFieldLines pos lines') fieldValues
-
-parseProgramPathsField :: [NamelessField Position] -> ParseResult (FilePath)
-parseProgramPathsField fieldValues = case fieldValues of
-  (MkNamelessField pos lines') : _ -> runFieldParser pos parsecFilePath cabalSpec lines'
-  [] -> error "TODO investigate whether this is even possible" -- TODO create a test for field without value "ghc-location: "
-  -- example output for cabal-version without a value:
-  -- Errors encountered when parsing cabal file ./tmp.cabal:
-  -- tmp.cabal:1:1: error:
-  -- unexpected end of input
-  -- expecting white space, version digit (integral without leading zeroes), opening paren or operator
-  --     1 | cabal-version:
-  --       | ^
-  --   [] -> undefined
+parseProgramArgsField fieldLines =
+  concat <$> mapM (\(MkNamelessField pos lines') -> parseProgramArgsFieldLines pos lines') fieldLines
 
 -- | Parse all fieldLines of a single field occurrence in a program-options stanza.
 parseProgramArgsFieldLines :: Position -> [FieldLine Position] -> ParseResult [String]
