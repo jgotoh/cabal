@@ -25,6 +25,7 @@ module Distribution.Client.Config
   , parseConfig
   , defaultConfigFile
   , defaultCacheDir
+  , defaultCacheHome
   , defaultScriptBuildsDir
   , defaultStoreDir
   , defaultCompiler
@@ -629,7 +630,7 @@ instance Semigroup SavedConfig where
           , haddockKeepTempFiles = combine haddockKeepTempFiles
           , haddockIndex = combine haddockIndex
           , haddockBaseUrl = combine haddockBaseUrl
-          , haddockLib = combine haddockLib
+          , haddockResourcesDir = combine haddockResourcesDir
           , haddockOutputDir = combine haddockOutputDir
           }
         where
@@ -803,6 +804,10 @@ defaultInstallPrefix = do
 defaultConfigFile :: IO FilePath
 defaultConfigFile =
   getDefaultDir XdgConfig "config"
+
+defaultCacheHome :: IO FilePath
+defaultCacheHome =
+  getDefaultDir XdgCache ""
 
 defaultCacheDir :: IO FilePath
 defaultCacheDir =

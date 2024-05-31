@@ -280,7 +280,7 @@ if [ -z "$STEPS" ]; then
     STEPS="$STEPS time-summary"
 fi
 
-TARGETS="Cabal cabal-testsuite Cabal-tests Cabal-QuickCheck Cabal-tree-diff Cabal-described"
+TARGETS="Cabal Cabal-hooks cabal-testsuite Cabal-tests Cabal-QuickCheck Cabal-tree-diff Cabal-described"
 if ! $LIBONLY;  then TARGETS="$TARGETS cabal-install cabal-install-solver cabal-benchmarks"; fi
 if $BENCHMARKS; then TARGETS="$TARGETS solver-benchmarks"; fi
 
@@ -312,9 +312,9 @@ case "$(uname)" in
 esac
 
 if $LIBONLY; then
-    PROJECTFILE=cabal.project.validate.libonly
+    PROJECTFILE=cabal.validate-libonly.project
 else
-    PROJECTFILE=cabal.project.validate
+    PROJECTFILE=cabal.validate.project
 fi
 
 BASEHC=ghc-$($HC --numeric-version)

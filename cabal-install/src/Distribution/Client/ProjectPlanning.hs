@@ -480,7 +480,8 @@ configureCompiler
       )
       $ do
         liftIO $ info verbosity "Compiler settings changed, reconfiguring..."
-        progdb <- liftIO $ prependProgramSearchPath verbosity (fromNubList packageConfigProgramPathExtra) defaultProgramDb
+        let extraPath = fromNubList packageConfigProgramPathExtra
+        progdb <- liftIO $ prependProgramSearchPath verbosity extraPath [] defaultProgramDb
         let progdb' = userSpecifyPaths (Map.toList (getMapLast packageConfigProgramPaths)) progdb
         result@(_, _, progdb'') <-
           liftIO $
@@ -1376,6 +1377,7 @@ planPackages
       -- TODO: long-term, this compatibility matrix should be
       --       stored as a field inside 'Distribution.Compiler.Compiler'
       setupMinCabalVersionConstraint
+        | isGHC, compVer >= mkVersion [9, 10] = mkVersion [3, 12]
         | isGHC, compVer >= mkVersion [9, 6] = mkVersion [3, 10]
         | isGHC, compVer >= mkVersion [9, 4] = mkVersion [3, 8]
         | isGHC, compVer >= mkVersion [9, 2] = mkVersion [3, 6]
@@ -1630,6 +1632,7 @@ elaborateInstallPlan
                 4
                 (vcat (map (text . componentNameStanza) cns))
         where
+          bt = PD.buildType (elabPkgDescription elab0)
           -- You are eligible to per-component build if this list is empty
           why_not_per_component g =
             cuz_buildtype ++ cuz_spec ++ cuz_length ++ cuz_flag
@@ -1645,11 +1648,12 @@ elaborateInstallPlan
               -- type, and teach all of the code paths how to handle it.
               -- Once you've implemented this, swap it for the code below.
               cuz_buildtype =
-                case PD.buildType (elabPkgDescription elab0) of
+                case bt of
                   PD.Configure -> [CuzBuildType CuzConfigureBuildType]
                   PD.Custom -> [CuzBuildType CuzCustomBuildType]
+                  PD.Hooks -> [CuzBuildType CuzHooksBuildType]
                   PD.Make -> [CuzBuildType CuzMakeBuildType]
-                  _ -> []
+                  PD.Simple -> []
               -- cabal-format versions prior to 1.8 have different build-depends semantics
               -- for now it's easier to just fallback to legacy-mode when specVersion < 1.8
               -- see, https://github.com/haskell/cabal/issues/4121
@@ -1693,7 +1697,7 @@ elaborateInstallPlan
           -- have to add dependencies on this from all other components
           setupComponent :: Maybe ElaboratedConfiguredPackage
           setupComponent
-            | PD.buildType (elabPkgDescription elab0) == PD.Custom =
+            | bt `elem` [PD.Custom, PD.Hooks] =
                 Just
                   elab0
                     { elabModuleShape = emptyModuleShape
@@ -2159,6 +2163,13 @@ elaborateInstallPlan
             elabBuildHaddocks =
               perPkgOptionFlag pkgid False packageConfigDocumentation
 
+            -- `documentation: true` should imply `-haddock` for GHC
+            addHaddockIfDocumentationEnabled :: ConfiguredProgram -> ConfiguredProgram
+            addHaddockIfDocumentationEnabled cp@ConfiguredProgram{..} =
+              if programId == "ghc" && elabBuildHaddocks
+                then cp{programOverrideArgs = "-haddock" : programOverrideArgs}
+                else cp
+
             elabPkgSourceLocation = srcloc
             elabPkgSourceHash = Map.lookup pkgid sourcePackageHashes
             elabLocalToProject = isLocalToProject pkg
@@ -2238,7 +2249,7 @@ elaborateInstallPlan
               Map.fromList
                 [ (programId prog, args)
                 | prog <- configuredPrograms compilerprogdb
-                , let args = programOverrideArgs prog
+                , let args = programOverrideArgs $ addHaddockIfDocumentationEnabled prog
                 , not (null args)
                 ]
                 <> perPkgOptionMapMappend pkgid packageConfigProgramArgs
@@ -2267,7 +2278,7 @@ elaborateInstallPlan
             elabHaddockContents = perPkgOptionMaybe pkgid packageConfigHaddockContents
             elabHaddockIndex = perPkgOptionMaybe pkgid packageConfigHaddockIndex
             elabHaddockBaseUrl = perPkgOptionMaybe pkgid packageConfigHaddockBaseUrl
-            elabHaddockLib = perPkgOptionMaybe pkgid packageConfigHaddockLib
+            elabHaddockResourcesDir = perPkgOptionMaybe pkgid packageConfigHaddockResourcesDir
             elabHaddockOutputDir = perPkgOptionMaybe pkgid packageConfigHaddockOutputDir
 
             elabTestMachineLog = perPkgOptionMaybe pkgid packageConfigTestMachineLog
@@ -3677,7 +3688,14 @@ setupHsScriptOptions
   cacheLock =
     SetupScriptOptions
       { useCabalVersion = thisVersion elabSetupScriptCliVersion
-      , useCabalSpecVersion = Just elabSetupScriptCliVersion
+      , useCabalSpecVersion =
+          if PD.buildType elabPkgDescription == PD.Hooks
+            then -- NB: we don't want to commit to a Cabal version here:
+            --   - all that should matter for Hooks build-type is the
+            --     version of Cabal-hooks, not of Cabal,
+            --   - if we commit to a Cabal version, the logic in
+              Nothing
+            else Just elabSetupScriptCliVersion
       , useCompiler = Just pkgConfigCompiler
       , usePlatform = Just pkgConfigPlatform
       , usePackageDB = elabSetupPackageDBStack
@@ -4090,41 +4108,46 @@ setupHsRegisterFlags
 setupHsHaddockFlags
   :: ElaboratedConfiguredPackage
   -> ElaboratedSharedConfig
+  -> BuildTimeSettings
   -> Cabal.CommonSetupFlags
   -> Cabal.HaddockFlags
-setupHsHaddockFlags (ElaboratedConfiguredPackage{..}) (ElaboratedSharedConfig{..}) common =
-  Cabal.HaddockFlags
-    { haddockCommonFlags = common
-    , haddockProgramPaths =
-        case lookupProgram haddockProgram pkgConfigCompilerProgs of
-          Nothing -> mempty
-          Just prg ->
-            [
-              ( programName haddockProgram
-              , locationPath (programLocation prg)
-              )
-            ]
-    , haddockProgramArgs = mempty -- unused, set at configure time
-    , haddockHoogle = toFlag elabHaddockHoogle
-    , haddockHtml = toFlag elabHaddockHtml
-    , haddockHtmlLocation = maybe mempty toFlag elabHaddockHtmlLocation
-    , haddockForHackage = toFlag elabHaddockForHackage
-    , haddockForeignLibs = toFlag elabHaddockForeignLibs
-    , haddockExecutables = toFlag elabHaddockExecutables
-    , haddockTestSuites = toFlag elabHaddockTestSuites
-    , haddockBenchmarks = toFlag elabHaddockBenchmarks
-    , haddockInternal = toFlag elabHaddockInternal
-    , haddockCss = maybe mempty toFlag elabHaddockCss
-    , haddockLinkedSource = toFlag elabHaddockLinkedSource
-    , haddockQuickJump = toFlag elabHaddockQuickJump
-    , haddockHscolourCss = maybe mempty toFlag elabHaddockHscolourCss
-    , haddockContents = maybe mempty toFlag elabHaddockContents
-    , haddockKeepTempFiles = mempty -- TODO: from build settings
-    , haddockIndex = maybe mempty toFlag elabHaddockIndex
-    , haddockBaseUrl = maybe mempty toFlag elabHaddockBaseUrl
-    , haddockLib = maybe mempty toFlag elabHaddockLib
-    , haddockOutputDir = maybe mempty toFlag elabHaddockOutputDir
-    }
+setupHsHaddockFlags
+  (ElaboratedConfiguredPackage{..})
+  (ElaboratedSharedConfig{..})
+  (BuildTimeSettings{buildSettingKeepTempFiles = keepTmpFiles})
+  common =
+    Cabal.HaddockFlags
+      { haddockCommonFlags = common
+      , haddockProgramPaths =
+          case lookupProgram haddockProgram pkgConfigCompilerProgs of
+            Nothing -> mempty
+            Just prg ->
+              [
+                ( programName haddockProgram
+                , locationPath (programLocation prg)
+                )
+              ]
+      , haddockProgramArgs = mempty -- unused, set at configure time
+      , haddockHoogle = toFlag elabHaddockHoogle
+      , haddockHtml = toFlag elabHaddockHtml
+      , haddockHtmlLocation = maybe mempty toFlag elabHaddockHtmlLocation
+      , haddockForHackage = toFlag elabHaddockForHackage
+      , haddockForeignLibs = toFlag elabHaddockForeignLibs
+      , haddockExecutables = toFlag elabHaddockExecutables
+      , haddockTestSuites = toFlag elabHaddockTestSuites
+      , haddockBenchmarks = toFlag elabHaddockBenchmarks
+      , haddockInternal = toFlag elabHaddockInternal
+      , haddockCss = maybe mempty toFlag elabHaddockCss
+      , haddockLinkedSource = toFlag elabHaddockLinkedSource
+      , haddockQuickJump = toFlag elabHaddockQuickJump
+      , haddockHscolourCss = maybe mempty toFlag elabHaddockHscolourCss
+      , haddockContents = maybe mempty toFlag elabHaddockContents
+      , haddockKeepTempFiles = toFlag keepTmpFiles
+      , haddockIndex = maybe mempty toFlag elabHaddockIndex
+      , haddockBaseUrl = maybe mempty toFlag elabHaddockBaseUrl
+      , haddockResourcesDir = maybe mempty toFlag elabHaddockResourcesDir
+      , haddockOutputDir = maybe mempty toFlag elabHaddockOutputDir
+      }
 
 setupHsHaddockArgs :: ElaboratedConfiguredPackage -> [String]
 -- TODO: Does the issue #3335 affects test as well
@@ -4280,7 +4303,7 @@ packageHashConfigInputs shared@ElaboratedSharedConfig{..} pkg =
     , pkgHashHaddockContents = elabHaddockContents
     , pkgHashHaddockIndex = elabHaddockIndex
     , pkgHashHaddockBaseUrl = elabHaddockBaseUrl
-    , pkgHashHaddockLib = elabHaddockLib
+    , pkgHashHaddockResourcesDir = elabHaddockResourcesDir
     , pkgHashHaddockOutputDir = elabHaddockOutputDir
     }
   where
