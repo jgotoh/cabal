@@ -355,6 +355,10 @@ parsePackageName pos args = case args of
     parser =
       P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
 
+programArgsFieldGrammar :: ParsecFieldGrammar' [(String,[String])]
+programArgsFieldGrammar =
+  monoidalFieldAla "ghc-options" (alaList' NoCommaFSep Token') oida
+
 -- | Parse fields of a program-options stanza.
 parseProgramArgs :: ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])
 parseProgramArgs programDb fields = foldM parseField mempty (filter hasOptionsSuffix $ Map.toList fields)
