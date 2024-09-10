@@ -39,6 +39,7 @@ module Distribution.Compat.Lens
     -- * Lens
   , cloneLens
   , aview
+  , lens
 
     -- * Common lenses
   , _1
@@ -144,10 +145,10 @@ aview :: ALens s t a b -> s -> a
 aview l = pretextPos . l pretextSell
 {-# INLINE aview #-}
 
-{-
+-- TODO create github comment: why was this in a comment? Was there something wrong with the implementation?
+-- I removed the comment to use it to implement function keyLens in Module ..., and it works.
 lens :: (s -> a) -> (s -> a -> s) -> Lens' s a
 lens sa sbt afb s = sbt s <$> afb (sa s)
--}
 
 -------------------------------------------------------------------------------
 -- Common

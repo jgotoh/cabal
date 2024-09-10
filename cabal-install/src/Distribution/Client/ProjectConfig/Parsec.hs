@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Parsing project configuration.
 module Distribution.Client.ProjectConfig.Parsec
@@ -251,6 +252,11 @@ parseSection programDb (MkSection (Name pos name) args secFields)
   | name == "program-options" = do
       verifyNullSubsections
       verifyNullSectionArgs
+      let grammar' = programArgsFieldGrammar programNames
+      let s = "BEGIN DEBUG " <> (show $ fieldGrammarKnownFieldList grammar') <> "END DEBUG"
+      let grammar = trace s grammar'
+      -- opts' <- lift $ parseFieldGrammar cabalSpec fields (grammar)
+      -- TODO print out the parseable fields of the fieldgrammar!
       opts' <- lift $ parseProgramArgs programDb fields
       stateConfig . L.projectConfigLocalPackages . L.packageConfigProgramArgs %= (opts' <>)
   | name == "program-locations" = do
@@ -355,9 +361,49 @@ parsePackageName pos args = case args of
     parser =
       P.choice [P.try (P.char '*' >> return AllPackages), SpecificPackage <$> parsec]
 
-programArgsFieldGrammar :: ParsecFieldGrammar' [(String,[String])]
-programArgsFieldGrammar =
-  monoidalFieldAla "ghc-options" (alaList' NoCommaFSep Token') oida
+-- function for does not combine the FieldGrammars
+-- see https://hackage.haskell.org/package/Cabal-syntax-3.12.1.0/docs/src/Distribution.FieldGrammar.Parsec.html#local-6989586621679469345
+-- monoidalFieldAla also creates just a ParsecFG with singleton field, so somehow
+-- it should be combined. But how?
+-- see implementation of instance Applicative (ParsecFieldGrammar s) where
+-- it combines two FieldGrammars!
+programArgsFieldGrammar' :: [String] -> ParsecFieldGrammar' (MapMappend String [String])
+programArgsFieldGrammar' programs = for (trace (show programNamesMap) programNamesMap) addField
+  where
+    programNamesMap = toMapMappend (trace (show programs) programs)
+    toMapMappend keys = MapMappend $ Map.fromList [((key ++ "-options"), mempty) | key <- keys]
+    addField (key :: String) = monoidalFieldAla (toUTF8BS key) (alaList' NoCommaFSep Token') (keyLens key)
+
+argsFields' :: ParsecFieldGrammar (MapMappend String [String]) [[String]]
+argsFields' = sequenceA exampleFields
+
+exampleFields :: [ParsecFieldGrammar (MapMappend String [String]) [String]]
+exampleFields = [field1, field2]
+
+field1 :: ParsecFieldGrammar (MapMappend String [String]) [String]
+field1 = monoidalFieldAla "ghc-options" (alaList' NoCommaFSep Token') (keyLens "ghc")
+
+field2 :: ParsecFieldGrammar (MapMappend String [String]) [String]
+field2 = monoidalFieldAla "gcc-options" (alaList' NoCommaFSep Token') (keyLens "gcc")
+
+programArgsFieldGrammar :: [String] -> ParsecFieldGrammar' (MapMappend String [String])
+programArgsFieldGrammar programs = mempty <$> (sequenceA $ programArgsFields programs)
+
+programArgsFields :: [String] -> [ParsecFieldGrammar (MapMappend String [String]) [String]]
+programArgsFields programs = addField <$> programs
+
+addField :: String -> ParsecFieldGrammar (MapMappend String [String]) [String]
+addField key = monoidalFieldAla (toUTF8BS (key ++ "-options")) (alaList' NoCommaFSep Token') (keyLens key)
+
+    -- programFieldNames = (<> "-options") <$> programs
+
+keyLens :: String -> ALens' (MapMappend String [String]) [String]
+keyLens k = lens getter setter
+  where
+    getter (MapMappend m) = case Map.lookup k m of
+      Just v -> v
+      Nothing -> error $ "Key not found: " ++ k
+    setter (MapMappend m) newValue = MapMappend (Map.insert k newValue m)
 
 -- | Parse fields of a program-options stanza.
 parseProgramArgs :: ProgramDb -> Fields Position -> ParseResult (MapMappend String [String])

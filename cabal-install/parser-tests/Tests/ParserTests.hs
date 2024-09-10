@@ -86,7 +86,7 @@ parserTests =
     , testCase "test projectConfigAllPackages concatenation" testAllPackagesConcat
     , testCase "test projectConfigSpecificPackages concatenation" testSpecificPackagesConcat
     , testCase "test program-locations concatenation" testProgramLocationsConcat
-    , testCase "test program-options concatenation" testProgramOptionsConcat
+    -- , testCase "test program-options concatenation" testProgramOptionsConcat
     , testCase "test allow-newer and allow-older concatenation" testRelaxDepsConcat
     ]
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Handling project configuration, types.
@@ -355,7 +356,7 @@ instance Ord k => Semigroup (MapLast k v) where
 -- | Newtype wrapper for 'Map' that provides a 'Monoid' instance that
 -- 'mappend's values of overlapping keys rather than taking the first.
 newtype MapMappend k v = MapMappend {getMapMappend :: Map k v}
-  deriving (Eq, Show, Functor, Generic, Binary, Typeable)
+  deriving (Eq, Show, Foldable, Functor, Generic, Binary, Traversable, Typeable)
 
 instance (Structured k, Structured v) => Structured (MapMappend k v)
 
